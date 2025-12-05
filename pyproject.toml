@@ -1,9 +1,9 @@
 [project]
-name = "langchain-langgraph"
+name = "llama-stack-agentic-sample"
 version = "0.1.0"
-description = "LangChain / LangGraph Customer Service Example"
+description = "Llama-Stack LangGraph Customer Service Example"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "llama-stack==0.3.1",
     #"llama-stack-client @ git+https://github.com/llamastack/llama-stack-client-python@526a42aa347592e27f57f78ef07aae3cf1997ceb",
