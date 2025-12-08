@@ -52,9 +52,12 @@ submission_states: dict[str, State] = {}
 class ClassificationSchema(BaseModel):
     """Analyze the message and route it according to its content."""
 
-    classification: "Literal['legal', 'support', 'unsafe', 'unknown']" = Field(
-        description="""The classification of the input: 'set to 'legal' if the input is a query related to legal, 'support' if related to software or technical support, or
-        'unsafe' if the input fails the moderation/safety check, and 'unknown' for everything else.
+    classification: "Literal['legal', 'support', 'hr', 'sales', 'procurement', 'unsafe', 'unknown']" = Field(
+        description="""The classification of the input: set to 'legal' if the input is a query related to legal, 'support' if the query is related to software or technical support,
+        'hr' if the input is a query related to human resources (commonly referred to as 'hr'), 'sales' if the input
+        is a query related to sales or the selling or products, 'procurement' if the input is related to the purchasing,
+        obtaining, or procurement of assets needed to run the business,
+        or 'unsafe' if the input fails the moderation/safety check, and 'unknown' for everything else.
         Examples of legal questions that can be processed:
         - questions about various software licenses
         - embargoes for certain types of software that prevent delivery to various countries outside the United States
@@ -71,6 +74,22 @@ class ClassificationSchema(BaseModel):
         - troubleshooting issues with devices, drivers, or applications
         - syncing issues, file transfer problems, or connectivity questions
         - any technical how-to questions about products or systems
+        Examples of hr questions:
+        - details on office setup, work area or work spaces, benefits
+        - company required activities
+        - salary and bonuses
+        Examples of sales questions:
+        - who sells where
+        - details of the sale, including pricing
+        - how much should be sold of certain products
+        - what systems to use in tracking sales
+        - how products are described and discussed
+        Examples of procurement questions:
+        - how much money can be spent
+        - who has to approve spending
+        - best practices
+        - processes to approve spending
+        - who we prefer or allow to buy from
         """,
     )
 
@@ -144,15 +163,19 @@ def classification_agent(state: "State") -> "State":
     logger.info(
         f"Classification result: {classification_result} for input '{state['input']}'"
     )
+    state["data"] = state["input"]
     if "legal" == classification_result.classification:
         state["decision"] = "legal"
-        state["data"] = state["input"]
     elif "support" == classification_result.classification:
         state["decision"] = "support"
-        state["data"] = state["input"]
+    elif "hr" == classification_result.classification:
+        state["decision"] = "hr"
+    elif "sales" == classification_result.classification:
+        state["decision"] = "sales"
+    elif "procurement" == classification_result.classification:
+        state["decision"] = "procurement"
     else:
         state["decision"] = "unknown"
-        state["data"] = state["input"]
         state["classification_message"] = "Unable to determine request type."
         state["workflow_complete"] = True  # Terminal state - workflow ends here
 
@@ -163,11 +186,17 @@ def classification_agent(state: "State") -> "State":
 
 def route_to_next_node(
     state: "State",
-) -> "Literal['legal_agent', 'support_agent', '__end__']":
+) -> "Literal['legal_agent', 'support_agent', 'hr_agent', 'sales_agent', 'procurement_agent', '__end__']":
     if state["decision"] == "legal":
         return "legal_agent"
     elif state["decision"] == "support":
         return "support_agent"
+    elif state["decision"] == "hr":
+        return "hr_agent"
+    elif state["decision"] == "sales":
+        return "sales_agent"
+    elif state["decision"] == "procurement":
+        return "procurement_agent"
     else:
         return "__end__"
 
@@ -455,6 +484,7 @@ def create_department_agent(
     submission_states: "Mapping[str, 'State'] | dict[str, Any] | None" = None,
     rag_service=None,
     rag_category: "str | None" = None,
+    additional_prompt: "str | None" = None,
     is_terminal: "bool" = False,
 ):
     """Factory function to create department-specific agents with consistent structure.
@@ -513,6 +543,9 @@ def create_department_agent(
 {user_input}
 
 Please provide a helpful response based on the documents found. If no relevant documents are found, provide general guidance."""
+
+                if additional_prompt is not None:
+                    rag_prompt += f"""\n{additional_prompt}"""
 
                 logger.info(
                     f"{department_display_name}: Making RAG-enabled response call"
@@ -661,10 +694,77 @@ def make_workflow(
         is_terminal=False,  # support continues to support_classification_agent
     )
 
+    hr_agent = create_department_agent(
+        department_name="hr",
+        department_display_name="Human Resources",
+        custom_llm=topic_llm,
+        submission_states=submission_states,
+        rag_service=rag_service,
+        rag_category="hr",
+        additional_prompt="""
+        FantaCo's benefits description is organized into such categories as:
+        - bare necessities: workspace, as well as benefits such as health care, vacation or PTO, retirement plans
+        - beyond the basics: music, parties and activities, food and driving services, bonuses
+        - and then some minor caveats: random set of participation requirements
+        if possible, try to narrow the scope of the response to the details that fall under on of those sub-sections of 
+        the benefits document.
+        """,
+        is_terminal=True,
+    )
+
+    sales_agent = create_department_agent(
+        department_name="sales",
+        department_display_name="Sales",
+        custom_llm=topic_llm,
+        submission_states=submission_states,
+        rag_service=rag_service,
+        rag_category="sales",
+        additional_prompt="""
+        FantaCo's sales operation manual outlines policies over ten broad categories :
+        - geographic territories
+        - lead assignments
+        - discounting
+        - deal approval
+        - quotas
+        - compensations
+        - CRMs
+        - brands and communications
+        - expenses
+        - escalations
+        - performance
+        - compliance
+        if possible, try to narrow the scope of the response to the details that fall under on of those sub-sections of 
+        the sales document.
+        """,
+        is_terminal=True,
+    )
+    procurement_agent = create_department_agent(
+        department_name="procurement",
+        department_display_name="Procurement",
+        custom_llm=topic_llm,
+        submission_states=submission_states,
+        rag_service=rag_service,
+        rag_category="procurement",
+        additional_prompt="""
+        FantaCo's procurement policies cover :
+        - competitive bidding
+        - vendor evaluation and categorization
+        - ethics and transparency
+        - review
+        - spending limits
+        if possible, try to narrow the scope of the response to the details that fall under on of those sub-sections of 
+        the procurement document.
+        """,
+        is_terminal=True,
+    )
+
     # Create the overall workflow
     overall_workflow = StateGraph(State)  # type: ignore[type-var]
     overall_workflow.add_node("classification_agent", classification_agent)
     overall_workflow.add_node("legal_agent", legal_agent)
+    overall_workflow.add_node("hr_agent", hr_agent)
+    overall_workflow.add_node("sales_agent", sales_agent)
+    overall_workflow.add_node("procurement_agent", procurement_agent)
     overall_workflow.add_node("support_agent", support_agent)
     overall_workflow.add_node("pod_agent", pod_agent)
     overall_workflow.add_node("perf_agent", perf_agent)
