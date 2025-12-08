@@ -92,6 +92,16 @@ def classic_index() -> "Response":
     return send_from_directory("./static", "index.html")
 
 
+@app.route("/api/models", methods=["GET"])
+def get_models() -> "tuple[Response, int]":
+    """API endpoint to return current model configuration from runtime"""
+    return jsonify({
+        "inferenceModel": INFERENCE_MODEL,
+        "mcpToolModel": MCP_TOOL_MODEL,
+        "safetyModel": GUARDRAIL_MODEL,
+    }), 200
+
+
 @app.route("/api/submit", methods=["POST"])
 def api_submit() -> "tuple[Response, int]":
     """API endpoint to submit a question and get submission ID"""
