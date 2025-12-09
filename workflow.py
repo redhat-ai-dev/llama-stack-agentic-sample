@@ -3,6 +3,7 @@ import logging
 from typing import TypedDict, Annotated
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
+from llama_stack_client import LlamaStackClient
 from pydantic import BaseModel, Field
 from typing_extensions import Literal
 from typing import Mapping, Any
@@ -486,6 +487,7 @@ def create_department_agent(
     rag_category: "str | None" = None,
     additional_prompt: "str | None" = None,
     is_terminal: "bool" = False,
+    lls_client: "LlamaStackClient | None" = None,
 ):
     """Factory function to create department-specific agents with consistent structure.
 
@@ -530,7 +532,7 @@ def create_department_agent(
                 )
                 use_rag = False
 
-        if use_rag and file_search_tool and openaiClient:
+        if use_rag and file_search_tool and (openaiClient or lls_client):
             # Use RAG with file_search tool via OpenAI responses API
             # This uses the same openaiClient.responses.create() pattern as MCP tool calls
             try:
@@ -550,7 +552,10 @@ Please provide a helpful response based on the documents found. If no relevant d
                 logger.info(
                     f"{department_display_name}: Making RAG-enabled response call"
                 )
-                rag_response = openaiClient.responses.create(
+                resp = openaiClient.responses
+                if lls_client is not None:
+                    resp = lls_client.responses
+                rag_response = resp.create(
                     model=INFERENCE_MODEL, input=rag_prompt, tools=[file_search_tool]
                 )
 
@@ -673,6 +678,9 @@ def make_workflow(
         "INFERENCE_MODEL", "ollama/llama3.2:3b"
     )
 
+    LLAMA_STACK_URL = os.getenv("LLAMA_STACK_URL", "http://localhost:8321")
+    lls_client = LlamaStackClient(base_url=LLAMA_STACK_URL)
+
     # Create all department agents using the factory function
     # RAG is enabled for legal and support agents using their respective vector stores
     legal_agent = create_department_agent(
@@ -710,6 +718,7 @@ def make_workflow(
         the benefits document.
         """,
         is_terminal=True,
+        lls_client=lls_client,
     )
 
     sales_agent = create_department_agent(
