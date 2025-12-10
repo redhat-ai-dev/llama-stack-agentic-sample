@@ -539,19 +539,12 @@ def create_department_agent(
                 # Build the user query from state
                 user_input = state.get("input", "")
 
-                # Create RAG-augmented prompt with explicit instructions about source relevance
-                rag_prompt = f"""You have access to a knowledge base of documents. Please help with the following {department_display_name.lower()} query:
+                # Simple RAG prompt - let the system work naturally
+                rag_prompt = f"""Please help with the following {department_display_name.lower()} query:
 
 {user_input}
 
-IMPORTANT INSTRUCTIONS:
-1. Search the knowledge base for relevant documents.
-2. If the documents found are RELEVANT to the query, use them to provide a helpful response.
-3. If the documents found are NOT RELEVANT to the query (wrong topic, unrelated content), then:
-   - Include the marker "NO_RELEVANT_DOCUMENTS:" at the beginning of your actual answer.
-   - Provide general guidance based on your knowledge without citing the irrelevant documents.
-4. Do NOT cite or reference documents that are not relevant to the user's actual question.
-5. Provide ONLY your final answer. Do NOT include your reasoning process, internal thoughts, or step-by-step analysis."""
+Provide a helpful response based on any relevant documents found. Give only your final answer without reasoning steps."""
 
                 if additional_prompt is not None:
                     rag_prompt += f"""\n{additional_prompt}"""
@@ -580,76 +573,55 @@ IMPORTANT INSTRUCTIONS:
                             f"{department_display_name}: Found {len(sources)} source documents"
                         )
 
-                # Check if the response indicates no relevant documents were found
-                # If so, don't show RAG sources as they weren't actually helpful
+                # Check if sources should be shown
+                # Hide sources when LLM indicates docs weren't relevant
+                # Default to showing sources since RAG found them
                 rag_sources_useful = True
-                if response_text:
+                if response_text and sources:
                     response_lower = response_text.lower()
                     
-                    # Check for explicit marker anywhere in response (case-insensitive)
-                    # The marker might appear after LLM reasoning/thought process
-                    marker_lower = "no_relevant_documents:"
-                    if marker_lower in response_lower:
-                        rag_sources_useful = False
-                        # Find marker position (case-insensitive)
-                        marker_pos = response_lower.find(marker_lower)
-                        # Extract only the content after the marker (the actual answer)
-                        extracted = response_text[marker_pos + len(marker_lower):].strip()
-                        logger.info(
-                            f"{department_display_name}: LLM explicitly indicated no relevant documents, clearing sources. "
-                            f"Extracted {len(extracted)} chars from position {marker_pos}"
-                        )
-                        # Only use extracted content if there's something meaningful after the marker
-                        if extracted:
-                            response_text = extracted
-                        else:
-                            # If nothing after marker, use a generic message
-                            logger.warning(f"{department_display_name}: Nothing found after marker")
-                            response_text = "No relevant information found in the knowledge base for this query."
-                    else:
-                        # Fallback: check for common phrases indicating irrelevant documents
-                        # Be careful with patterns that could cause false positives
-                        no_docs_indicators = [
-                            # Explicit statements about not finding relevant info
-                            "no relevant document",
-                            "could not find any relevant",
-                            "couldn't find any relevant",
-                            "did not find any relevant",
-                            "didn't find any relevant",
-                            "no information found in",
-                            "no matching document",
-                            "unable to find relevant",
-                            "not found in the knowledge base",
-                            "no results found",
-                            # Topic mismatch indicators (more specific to avoid false positives)
-                            "nothing related to",
-                            "doesn't have any info on",
-                            "does not have any info on",
-                            "documents are unrelated",
-                            "documents don't cover",
-                            "documents do not cover",
-                            "aren't relevant to",
-                            "are not relevant to",
-                            "isn't relevant to",
-                            "is not relevant to",
-                            "unrelated to your query",
-                            "unrelated to the query",
-                            "wrong topic",
-                            "different topic",
-                            "available resources don't cover",
-                            "available documents don't cover",
-                            "knowledge base doesn't have",
-                            "knowledge base does not have",
-                            "knowledge base doesn't cover",
-                            "knowledge base does not cover",
-                        ]
-                        for indicator in no_docs_indicators:
-                            if indicator in response_lower:
-                                rag_sources_useful = False
-                                logger.info(
-                                    f"{department_display_name}: Response indicates no relevant RAG documents (matched: '{indicator}'), clearing sources"
-                                )
-                                break
+                    no_docs_indicators = [
+                        # Explicit statements about not finding relevant info
+                        "no relevant document",
+                        "could not find any relevant",
+                        "couldn't find any relevant",
+                        "did not find any relevant",
+                        "didn't find any relevant",
+                        "no information found in",
+                        "no matching document",
+                        "unable to find relevant",
+                        "not found in the knowledge base",
+                        "no results found",
+                        # Topic mismatch indicators (more specific to avoid false positives)
+                        "nothing related to",
+                        "doesn't have any info on",
+                        "does not have any info on",
+                        "documents are unrelated",
+                        "documents don't cover",
+                        "documents do not cover",
+                        "aren't relevant to",
+                        "are not relevant to",
+                        "isn't relevant to",
+                        "is not relevant to",
+                        "unrelated to your query",
+                        "unrelated to the query",
+                        "wrong topic",
+                        "different topic",
+                        "available resources don't cover",
+                        "available documents don't cover",
+                        "knowledge base doesn't have",
+                        "knowledge base does not have",
+                        "knowledge base doesn't cover",
+                        "knowledge base does not cover",
+                    ]
+                    
+                    for indicator in no_docs_indicators:
+                        if indicator in response_lower:
+                            rag_sources_useful = False
+                            logger.info(
+                                f"{department_display_name}: Response indicates irrelevant docs ('{indicator}'), hiding sources"
+                            )
+                            break
 
                 # Only set RAG sources if they were actually useful
                 if rag_sources_useful and sources:
