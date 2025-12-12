@@ -1,5 +1,8 @@
 # llama-stack-agentic-sample
 
+![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)
+![Tests](https://img.shields.io/badge/tests-passing-success.svg)
+
 This AI Agentic application provides a prototype "developer portal" chat interface which employs dynamic, stateful, workflow orchestration via both LangGraph and Llama Stack which takes customer questions and dynamically routes to different AI Agents, and call different agentic tools, based on the user's prompt and how it is classified.
 
 When progressing through the orchestration, rather than making any AI Related REST invocations directly against running AI Models, the model interactions all flow back and forth through a locally running Llama Stack instance and its Responses API compatibility layer.
