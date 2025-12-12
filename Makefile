@@ -4,7 +4,7 @@ help: ## Show this help
 
 .PHONY: install
 install: ## Installs rhdh-plugin-gitops-updater
-	pip install -e .
+	 pip install -e .
 
 .PHONY: ruff
 ruff: ## Run ruff for formatting and linting
@@ -13,7 +13,11 @@ ruff: ## Run ruff for formatting and linting
 
 .PHONY: ty
 ty: ## Run type check with ty
-	uvx ty check
+	uvx ty check src streamlit_app.py
+
+.PHONY: test
+test: ## Run tests with pytest
+	uv run pytest
 
 .PHONY: pre-commit-install
 pre-commit-install: ## Install pre-commit hooks
