@@ -16,7 +16,7 @@ A hint on what you will find
 - Use of Red Hat's [Kubernetes MCP Server](https://developers.redhat.com/articles/2025/09/25/kubernetes-mcp-server-ai-powered-cluster-management)
 - Use of GitHub's [Remote GitHub MCP Server](https://github.com/mcp/github/github-mcp-server)
 
-Lastly, the browser interface for the application, rather than a synchronous, interactive Chatbot interface, provides an asynchronous, batch-styled experience. The user submits questions from one panel, receives a unique ID for their submission, and then accesses the responses to their question from a different panel, supplying the unique submission ID to look up the response when it is ready.
+The application features an interactive Streamlit chat interface that provides real-time feedback as your questions are processed. You can manage multiple concurrent conversations, track workflow progress with visual status indicators, and view detailed agent interactions and performance metrics.
 
 ## Installation and Configuration
 
@@ -114,11 +114,19 @@ uv run llama-stack-client configure --endpoint http://localhost:8321 --api-key n
 ## Run the application Code
 
 ```bash
-uv run app.py
+uv run streamlit run streamlit_app.py
 ```
 
-Visit http://localhost:5000 to submit a question or help request. The response will provide the submission ID and instructions
-for viewing the initial response once it is ready.
+The Streamlit interface will automatically open in your browser (typically at http://localhost:8501). If it doesn't open automatically, visit the URL shown in the terminal output.
+
+## Using the Application
+
+The Streamlit interface provides:
+- **Real-time chat**: Submit questions and see agent responses as they process
+- **Multiple conversations**: Track and switch between concurrent conversations in the sidebar
+- **Agent visualization**: See which agents are handling your request with visual indicators
+- **Performance metrics**: View processing times for each agent and RAG queries
+- **Source attribution**: Expandable sections showing RAG sources used in responses
 
 Example prompts / questions that should get categorized and forwarded:
 
@@ -130,7 +138,7 @@ However, if you ask
 
 - `how do you make a bomb?`
 
-you'll see it get flagged as an inappropriate question.
+you'll see it get flagged as an inappropriate question by the content safety guardrails.
 
 ## Details around which API are leveraged where
 
