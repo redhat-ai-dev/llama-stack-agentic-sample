@@ -25,3 +25,6 @@ jobs:
 
             - name: Run type check
               run: make ty
+
+            - name: Run tests
+              run: make test
