@@ -59,32 +59,32 @@ class ClassificationModel(BaseModel):
 
         Examples of HR (Human Resources) questions that can be
         processed:
-        - questions about employee benefits, health care, vacation,
+        - employee benefits, health care, vacation,
           PTO, retirement plans
-        - questions about workspaces, office facilities, work
+        - workspaces, office facilities, work
           environment, office spaces, workplace setup
-        - questions about company policies, employee handbook
-        - questions about bonuses, compensation, perks
-        - questions about participation requirements or workplace
+        - company policies, employee handbook
+        - about bonuses, compensation, perks
+        - participation requirements or workplace
           activities
         - ANY question asking to describe or explain workspaces,
           office facilities, or work environments
 
         Examples of sales questions that can be processed:
-        - questions about sales territories, lead assignments
-        - questions about discounting, deal approval, quotas
-        - questions about sales compensation, CRM systems
-        - questions about brand guidelines, communications
-        - questions about sales expenses, escalations, performance
+        - sales territories, lead assignments
+        - discounting, deal approval, quotas
+        - sales compensation, CRM systems
+        - brand guidelines, communications
+        - sales expenses, escalations, performance
           metrics
-        - questions about sales compliance and policies
+        - sales compliance and policies
 
         Examples of procurement questions that can be processed:
-        - questions about competitive bidding, vendor evaluation
-        - questions about procurement ethics and transparency
-        - questions about spending limits and approval processes
-        - questions about procurement review procedures
-        - questions about vendor categorization
+        - competitive bidding, vendor evaluation
+        - procurement ethics and transparency
+        - spending limits and approval processes
+        - procurement review procedures
+        - vendor categorization
         """,
     )
 
