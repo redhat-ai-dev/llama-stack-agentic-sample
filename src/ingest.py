@@ -58,8 +58,8 @@ class IngestionService:
 
         # Vector DB setup
         _embedding_dimension = (
-            _config["vector_db"]["embedding_model"]
-            if _config["vector_db"]["embedding_model"]
+            _config["vector_db"]["embedding_dimension"]
+            if _config["vector_db"]["embedding_dimension"]
             else DEFAULT_EMBEDDING_DIMENSION
         )
         _chunk_size_in_tokens = (
