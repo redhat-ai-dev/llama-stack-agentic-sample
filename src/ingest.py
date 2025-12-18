@@ -599,7 +599,7 @@ class IngestionService:
         runs the ingestion service.
         """
         logger.info("Starting RAG Ingestion Service")
-        logger.info(f"Configuration: {os.path.abspath('ingestion-config.yaml')}")
+        logger.info(f"Configuration: {os.path.abspath(self.config_path)}")
         total = len(self.pipelines)
         successful, failed, skipped = 0, 0, 0
 
