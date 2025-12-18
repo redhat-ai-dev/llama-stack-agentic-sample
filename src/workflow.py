@@ -195,6 +195,10 @@ class Workflow:
                         f"{department_display_name}: Making RAG-enabled response call"
                     )
                     rag_start_time = time.time()
+                    # TODO: Here we could consider making the client choice
+                    # more flexible, meaning we could use either LlamaStackClient
+                    # or OpenAI client.
+                    # OpenAI client is accessible in self.rag_service.openai_client
                     rag_response = self.rag_service.client.responses.create(
                         model=INFERENCE_MODEL,
                         input=rag_prompt,
