@@ -518,7 +518,7 @@ def main():
         vector_store_count = ingestion_state.get("vector_store_count", 0)
 
         if ingestion_state["status"] == "pending":
-            st.warning("⏸️ Waiting for user action")
+            st.info("🔍 Checking...")
         elif ingestion_state["status"] == "running":
             st.info("⏳ Running...")
         elif ingestion_state["status"] == "completed":
