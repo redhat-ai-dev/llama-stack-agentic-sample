@@ -141,6 +141,7 @@ def count_vector_stores() -> "int":
 async def check_and_run_ingestion_if_needed() -> "None":
     """
     checks if all required vector stores exist and runs ingestion if needed.
+    called automatically on startup (no user action required).
     """
     ingestion_state = get_ingestion_state()
 
@@ -160,6 +161,7 @@ async def check_and_run_ingestion_if_needed() -> "None":
             logger.info("All vector stores exist, skipping ingestion")
             vector_store_count = count_vector_stores()
 
+            # all required vector stores found, no ingestion needed
             ingestion_state["status"] = "skipped"
             ingestion_state["message"] = (
                 f"All vector stores exist - loaded {len(pipelines)}"
@@ -169,6 +171,7 @@ async def check_and_run_ingestion_if_needed() -> "None":
             ingestion_state["vector_store_count"] = vector_store_count
         else:
             logger.info("Some vector stores missing, starting ingestion...")
+            # vector stores missing, start async ingestion task
             ingestion_state["status"] = "running"
 
             loop = get_or_create_event_loop()
@@ -179,6 +182,7 @@ async def check_and_run_ingestion_if_needed() -> "None":
 
     except Exception as e:
         logger.error(f"Failed to check vector stores: {e}")
+        # failed to check stores, mark as error to unblock UI
         ingestion_state["status"] = "error"
         ingestion_state["message"] = f"Failed to check vector stores: {str(e)}"
         ingestion_state["pipelines"] = []
@@ -186,11 +190,12 @@ async def check_and_run_ingestion_if_needed() -> "None":
 
 async def run_ingestion_pipeline() -> "None":
     """
-    runs the ingestion pipeline asynchronously
+    runs the ingestion pipeline asynchronously.
     """
     ingestion_state = get_ingestion_state()
 
     try:
+        # mark as running while pipeline executes
         ingestion_state["status"] = "running"
         ingestion_state["message"] = "Checking llama-stack server availability..."
         logger.info("Starting Ingestion Service...")
@@ -224,6 +229,7 @@ async def run_ingestion_pipeline() -> "None":
 
         vector_store_count = await asyncio.to_thread(count_vector_stores)
 
+        # pipeline finished successfully, mark complete to unblock workflow
         ingestion_state["status"] = "completed"
         ingestion_state["ingested_count"] = len(ingested_items) if ingested_items else 0
         ingestion_state["vector_store_count"] = vector_store_count
@@ -237,6 +243,7 @@ async def run_ingestion_pipeline() -> "None":
         )
 
     except Exception as e:
+        # pipeline failed, mark as error to unblock UI
         ingestion_state["status"] = "error"
         error_msg = str(e)
         ingestion_state["message"] = f"Ingestion failed: {error_msg[:200]}"
@@ -491,6 +498,9 @@ def main():
     )
     progress_event_loop()
 
+    # ingestion state machine: "pending" → check if needed → "skipped"
+    # OR "running" → "completed"/"error"
+    # automatically runs on startup, no user action required
     ingestion_state = get_ingestion_state()
 
     with st.sidebar:
@@ -522,12 +532,15 @@ def main():
             st.metric("Vector Stores in Database", vector_store_count)
         st.divider()
 
+    # block workflow until ingestion complete
     if ingestion_state["status"] in ("pending", "running"):
         st.title("🤖 Agentic AI Workflow - Initializing")
 
         if ingestion_state["status"] == "running":
             st.info("⏳ Running data ingestion pipeline... Please wait.")
         else:
+            # status is "pending", trigger automatic check (will transition
+            # to "skipped" or "running")
             st.info("🔍 Checking vector stores...")
             loop = get_or_create_event_loop()
             loop.run_until_complete(check_and_run_ingestion_if_needed())
