@@ -4,7 +4,6 @@ from typing import Any, cast
 
 from langgraph.graph import START, StateGraph
 from llama_stack_client.types import ResponseObject
-from openai import OpenAI
 
 from src.constants import (
     DEFAULT_INFERENCE_MODEL,
@@ -86,6 +85,7 @@ class Workflow:
         rag_category: "str | None" = None,
         additional_prompt: "str" = "",
         is_terminal: "bool" = False,
+        client_override: "Any | None" = None,
     ) -> "Any":
         """
         factory function to create department-specific agents with consistent structure.
@@ -102,6 +102,8 @@ class Workflow:
             additional_prompt: Additional prompt instructions to append to the
             RAG prompt
             is_terminal: Whether this agent marks the end of the workflow
+            client_override: Optional client to use for LLM calls instead of
+            self.rag_service.client (default: None)
         """
         if custom_llm is None:
             raise ValueError("custom_llm is required")
@@ -152,6 +154,13 @@ class Workflow:
                     f"Updated status: {status_msg} for submission {submission_id}"
                 )
 
+            # determine which client to use
+            client_to_use = (
+                client_override
+                if client_override is not None
+                else (self.rag_service.client if self.rag_service else None)
+            )
+
             # check if RAG is available for this department
             use_rag = (
                 self.rag_service is not None
@@ -174,12 +183,7 @@ class Workflow:
                     )
                     use_rag = False
 
-            if (
-                use_rag
-                and file_search_tool
-                and self.rag_service
-                and self.rag_service.client
-            ):
+            if use_rag and file_search_tool and self.rag_service and client_to_use:
                 # Use RAG with file_search tool
                 try:
                     rag_prompt = self.rag_prompt.format(
@@ -198,7 +202,7 @@ class Workflow:
                     # more flexible, meaning we could use either LlamaStackClient
                     # or OpenAI client.
                     # OpenAI client is accessible in self.rag_service.openai_client
-                    rag_response = self.rag_service.client.responses.create(
+                    rag_response = client_to_use.responses.create(
                         model=INFERENCE_MODEL,
                         input=rag_prompt,
                         tools=[file_search_tool],
@@ -416,7 +420,9 @@ class Workflow:
         def git_agent_node(state: "WorkflowState") -> "WorkflowState":
             return git_agent(
                 state,
-                openai_client=cast("OpenAI | None", self.rag_service.client),  # type: ignore[arg-type]
+                openai_client=(
+                    self.rag_service.openai_client if self.rag_service else None
+                ),
                 tools_llm=tools_llm,
                 git_token=git_token,
                 github_url=github_url,
@@ -425,14 +431,18 @@ class Workflow:
         def pod_agent_node(state: "WorkflowState") -> "WorkflowState":
             return pod_agent(
                 state,
-                openai_client=cast("OpenAI | None", self.rag_service.client),  # type: ignore[arg-type]
+                openai_client=(
+                    self.rag_service.openai_client if self.rag_service else None
+                ),
                 tools_llm=tools_llm,
             )
 
         def perf_agent_node(state: "WorkflowState") -> "WorkflowState":
             return perf_agent(
                 state,
-                openai_client=cast("OpenAI | None", self.rag_service.client),  # type: ignore[arg-type]
+                openai_client=(
+                    self.rag_service.openai_client if self.rag_service else None
+                ),
                 tools_llm=tools_llm,
             )
 

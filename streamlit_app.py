@@ -3,6 +3,7 @@ import json
 import os
 import time
 import uuid
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -57,6 +58,9 @@ INGESTION_CONFIG = os.getenv("INGESTION_CONFIG", DEFAULT_INGESTION_CONFIG)
 
 # RAG_FILE_METADATA: Path to the RAG file metadata
 RAG_FILE_METADATA = os.getenv("RAG_FILE_METADATA", "rag_file_metadata.json")
+
+# EXECUTOR_WORKERS: Maximum number of concurrent workflow threads
+EXECUTOR_WORKERS = int(os.getenv("EXECUTOR_WORKERS", "10"))
 
 
 @st.cache_resource
@@ -126,6 +130,7 @@ def initialize_workflow(_pipelines: "list[Pipeline]") -> "tuple[Any, RAGService]
 def get_or_create_event_loop() -> "Any":
     """
     gets an existing event loop from session state or create a new one
+    Used for ingestion tasks on the main thread
     """
     if "event_loop" not in st.session_state:
         # create persistent event loop for async task management
@@ -134,14 +139,38 @@ def get_or_create_event_loop() -> "Any":
     return st.session_state.event_loop
 
 
+def get_or_create_executor() -> "ThreadPoolExecutor":
+    """
+    gets or creates a cached ThreadPoolExecutor for running workflows
+    Each workflow will run in its own thread with its own event loop
+    """
+    if "thread_executor" not in st.session_state:
+        # create thread pool executor for parallel workflow execution
+        st.session_state.thread_executor = ThreadPoolExecutor(
+            max_workers=EXECUTOR_WORKERS
+        )
+    return st.session_state.thread_executor
+
+
 def get_tasks_dict() -> "Any":
     """
-    gets tasks dictionary from session state
+    gets tasks dictionary from session state (for ingestion)
     """
     if "async_tasks" not in st.session_state:
-        # structure to store all running async tasks
+        # structure to store running async tasks (ingestion only)
         st.session_state.async_tasks = {}
     return st.session_state.async_tasks
+
+
+def get_futures_dict() -> "dict[str, Future[None]]":
+    """
+    gets futures dictionary from session state
+    Tracks all running workflow futures
+    """
+    if "workflow_futures" not in st.session_state:
+        # structure to store all running workflow futures
+        st.session_state.workflow_futures = {}
+    return st.session_state.workflow_futures
 
 
 def get_ingestion_state() -> "dict[str, Any]":
@@ -258,10 +287,11 @@ async def run_ingestion_pipeline() -> "None":
 
         # run ingestion in background thread to avoid blocking
         ingestion_state["message"] = (
-            "Running ingestion pipeline (this may take a while)..."
+            "Running ingestion pipeline with concurrent processing..."
         )
-        logger.info("Running ingestion pipeline...")
-        ingested_items = await asyncio.to_thread(ingestion_service.run)
+        logger.info("Running ingestion pipeline with concurrent processing...")
+        # run ingestion with concurrent processing
+        await ingestion_service.run()
 
         # save pipeline config for workflow initialization
         ingestion_state["pipelines"] = ingestion_service.pipelines
@@ -270,15 +300,14 @@ async def run_ingestion_pipeline() -> "None":
 
         # mark complete - UI can now initialize workflow
         ingestion_state["status"] = "completed"
-        ingestion_state["ingested_count"] = len(ingested_items) if ingested_items else 0
+        ingestion_state["ingested_count"] = len(ingestion_service.pipelines)
         ingestion_state["vector_store_count"] = vector_store_count
         ingestion_state["message"] = (
-            "Ingestion completed successfully! "
-            f"Processed {ingestion_state['ingested_count']} items."
+            "Ingestion completed successfully with concurrent processing!"
         )
         logger.info(
             f"Ingestion completed: {ingestion_state['ingested_count']} "
-            f"items processed, {vector_store_count} vector stores in database"
+            f"pipelines processed, {vector_store_count} vector stores in database"
         )
 
     except Exception as e:
@@ -449,19 +478,33 @@ def _render_exchange_response(
                     st.metric("RAG Query", f"{rag_time:.2f}s")
 
 
-async def run_workflow_task(
+def _run_async_in_thread(coro):
+    """
+    helper to run an async coroutine in a new thread with its own event loop
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+async def run_workflow_task_async(
     workflow: "Workflow", question: "str", submission_id: "str"
 ) -> "None":
     """
-    async task to run a single workflow
+    async task to run a single workflow with concurrent operations
+    This runs in its own thread with its own event loop
     """
     try:
         logger.info(f"Starting workflow task for submission {submission_id}")
 
-        # run workflow in background thread - it will classify and route
+        # run workflow - it will classify and route
         # the question through appropriate agents (classification -> dept agents)
-        result = await asyncio.to_thread(
-            workflow.invoke,  # type: ignore[attr-defined]
+        # Note: workflow.invoke is synchronous but we're in an async context
+        # to allow future async operations within the workflow
+        result = workflow.invoke(  # type: ignore[attr-defined]
             {
                 "input": question,
                 "submission_id": submission_id,
@@ -522,9 +565,19 @@ async def run_workflow_task(
         submission_states[submission_id] = error_state
 
 
+def run_workflow_task(
+    workflow: "Workflow", question: "str", submission_id: "str"
+) -> "None":
+    """
+    wrapper to run workflow task in thread with asyncio
+    """
+    _run_async_in_thread(run_workflow_task_async(workflow, question, submission_id))
+
+
 def progress_event_loop() -> "None":
     """
     progress the event loop to advance all pending tasks without blocking UI
+    (Used only for ingestion tasks)
     """
     loop = get_or_create_event_loop()
     tasks = get_tasks_dict()
@@ -542,15 +595,18 @@ def progress_event_loop() -> "None":
 def submit_workflow_task(
     workflow: "Workflow", question: "str", submission_id: "str"
 ) -> "None":
-    """Submit a new workflow task to the event loop"""
-    loop = get_or_create_event_loop()
-    tasks = get_tasks_dict()
+    """
+    Submit a new workflow task to the ThreadPoolExecutor
+    Each workflow runs in its own thread with its own event loop
+    """
+    executor = get_or_create_executor()
+    futures = get_futures_dict()
 
-    # create async task and track it for progress monitoring
-    task = loop.create_task(run_workflow_task(workflow, question, submission_id))
-    tasks[submission_id] = task
+    # submit workflow to run in background thread with its own event loop
+    future = executor.submit(run_workflow_task, workflow, question, submission_id)
+    futures[submission_id] = future
 
-    logger.info(f"Submitted workflow task for {submission_id}")
+    logger.info(f"Submitted workflow task for {submission_id} to thread pool")
 
 
 def main() -> "None":
@@ -632,11 +688,9 @@ def main() -> "None":
     else:
         workflow = st.session_state.workflow
 
-    # check if any workflows still running (exclude ingestion task)
-    tasks = get_tasks_dict()
-    has_active_tasks = any(
-        not task.done() for task_id, task in tasks.items() if task_id != "__ingestion__"
-    )
+    # check if any workflows still running
+    futures = get_futures_dict()
+    has_active_workflows = any(not future.done() for future in futures.values())
 
     AGENT_ICONS = {
         "Classification": "🔍",
@@ -845,8 +899,8 @@ def main() -> "None":
         submit_workflow_task(workflow, question, submission_id)
         st.rerun()
 
-    # auto-rerun while tasks are active to show progress
-    if has_active_tasks:
+    # auto-rerun while workflows are active to show progress
+    if has_active_workflows:
         time.sleep(0.5)
         st.rerun()
 

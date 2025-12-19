@@ -11,6 +11,9 @@ vector_db:
   embedding_model: "openai/text-embedding-3-small"
   embedding_dimension: 384
   chunk_size_in_tokens: 512
+  # Ingestion mode: [sync/async]
+  # for smaller models use sync
+  ingestion_mode: "sync"
 
 # Pipeline Configurations
 # Each pipeline will create a separate vector database

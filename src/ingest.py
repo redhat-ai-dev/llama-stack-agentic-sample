@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -23,6 +24,7 @@ from src.constants import (
     DEFAULT_EMBEDDING_DIMENSION,
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_HTTP_REQUEST_TIMEOUT,
+    DEFAULT_INGESTION_MODE,
     DEFAULT_LLAMA_STACK_RETRY_DELAY,
     DEFAULT_LLAMA_STACK_WAITING_RETRIES,
 )
@@ -53,6 +55,7 @@ class IngestionService:
                 sys.exit(1)
 
         self.config_path = config_path
+
         # Llama Stack setup
         self.llama_stack_url: "str" = _config["llamastack"]["base_url"]
         self.client = self._initialize_llama_stack_client()
@@ -74,6 +77,16 @@ class IngestionService:
             if _config["vector_db"].get("chunk_size_in_tokens")
             else DEFAULT_CHUNK_SIZE_IN_TOKENS
         )
+        self.ingestion_mode = (
+            _config["vector_db"].get("ingestion_mode", DEFAULT_INGESTION_MODE).lower()
+        )
+        if self.ingestion_mode not in ("async", "sync"):
+            logger.warning(
+                f"Invalid ingestion_mode '{self.ingestion_mode}', "
+                f"defaulting to '{DEFAULT_INGESTION_MODE}'"
+            )
+            self.ingestion_mode = DEFAULT_INGESTION_MODE
+        logger.info(f"Ingestion mode: {self.ingestion_mode}")
         self.vector_db_config = VectorDBConfig(
             embedding_model=_embedding_model,
             embedding_dimension=_embedding_dimension,
@@ -348,6 +361,8 @@ class IngestionService:
         download_dir = os.path.join(temp_dir, "repo")
         os.makedirs(download_dir, exist_ok=True)
 
+        # NOTE: This is done synchronously to avoid rate
+        # limits from Github
         try:
             logger.debug(f"Accessing contents at path: {path if path else '/'}")
             contents = repo.get_contents(path if path else "", ref=branch)
@@ -374,98 +389,180 @@ class IngestionService:
         logger.debug(f"Found {len(pdf_files)} PDF files")
         return pdf_files
 
-    def fetch_from_url(self, urls: "list[str]", temp_dir: "str") -> "list[str]":
+    def _download_single_url(self, url: str, download_dir: str) -> str | None:
         """
-        fetches documents from direct URLs.
+        downloads a single URL synchronously
         """
-        pdf_files: "list[str]" = []
-        logger.debug(f"Fetching {len(urls)} documents from URLs")
+        filename = os.path.basename(url.split("?")[0])
+        if not filename.lower().endswith(".pdf"):
+            filename += ".pdf"
+
+        file_path = os.path.join(download_dir, filename)
+
+        logger.debug(f"Downloading document from url: {url}")
+        try:
+            response = requests.get(url, timeout=DEFAULT_HTTP_REQUEST_TIMEOUT)
+            response.raise_for_status()
+
+            with open(file_path, "wb") as f:
+                f.write(response.content)
+
+            return file_path
+
+        except Exception as e:
+            logger.error(f"Error downloading {url}: {e}")
+            return None
+
+    async def fetch_from_url(self, urls: "list[str]", temp_dir: "str") -> "list[str]":
+        """
+        fetches documents from direct URLs concurrently.
+        """
+        logger.debug(f"Fetching {len(urls)} documents from URLs concurrently")
 
         download_dir = os.path.join(temp_dir, "url_files")
         os.makedirs(download_dir, exist_ok=True)
 
-        for url in urls:
-            filename = os.path.basename(url.split("?")[0])
-            if not filename.lower().endswith(".pdf"):
-                filename += ".pdf"
+        # download all URLs concurrently using thread pool
+        results = await asyncio.gather(
+            *[
+                asyncio.to_thread(self._download_single_url, url, download_dir)
+                for url in urls
+            ]
+        )
 
-            file_path = os.path.join(download_dir, filename)
+        # filter out None values (failed downloads)
+        pdf_files = [path for path in results if path is not None]
 
-            logger.debug(f"Downloading document from url: {url}")
-            try:
-                response = requests.get(url, timeout=DEFAULT_HTTP_REQUEST_TIMEOUT)
-                response.raise_for_status()
-
-                with open(file_path, "wb") as f:
-                    f.write(response.content)
-
-                pdf_files.append(file_path)
-
-            except Exception as e:
-                logger.error(f"Error downloading {url}: {e}")
-
-        logger.debug(f"Downloaded {len(pdf_files)} PDF files from URLs")
+        logger.debug(f"Downloaded {len(pdf_files)} PDF files from URLs concurrently")
         return pdf_files
 
-    def process_documents(
+    def _process_single_document(
+        self, file_path: str, github_base_url: str, category: str
+    ) -> File | None:
+        """
+        processes a single PDF document
+        """
+        try:
+            original_filename = os.path.basename(file_path)
+            logger.info(f"Processing document: {original_filename}")
+            result = self.converter.convert(file_path)
+
+            # clean text for special characters
+            markdown_text = result.document.export_to_markdown()
+            cleaned_text = clean_text(markdown_text)
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as tmp_file:
+                tmp_file.write(cleaned_text)
+                tmp_file_path = tmp_file.name
+
+            try:
+                file_create_response = self.client.files.create(
+                    file=Path(tmp_file_path), purpose="assistants"
+                )
+
+                file_id = file_create_response.id
+                github_url = (
+                    f"{github_base_url}/{original_filename}" if github_base_url else ""
+                )
+
+                self.file_metadata[file_id] = {
+                    "original_filename": original_filename,
+                    "github_url": github_url,
+                    "category": category,
+                }
+                logger.info(f"Mapped file_id '{file_id}' -> '{original_filename}'")
+                return file_create_response
+            finally:
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
+
+        except Exception as e:
+            logger.error(f"Error processing {file_path}: {e}")
+            return None
+
+    async def process_documents(
         self, pdf_files: "list[str]", github_base_url="", category=""
     ) -> "list[File]":
         """
-        processes PDF files into chunks using docling.
+        processes PDF files into chunks using docling concurrently.
         """
-        logger.info(f"Processing {len(pdf_files)} documents with docling...")
-        llama_documents: "list[File]" = []
+        logger.info(
+            f"Processing {len(pdf_files)} documents with docling concurrently..."
+        )
 
-        for file_path in pdf_files:
-            try:
-                original_filename = os.path.basename(file_path)
-                logger.info(f"Processing document: {original_filename}")
-                result = self.converter.convert(file_path)
+        # process all documents concurrently using thread pool
+        results = await asyncio.gather(
+            *[
+                asyncio.to_thread(
+                    self._process_single_document, file_path, github_base_url, category
+                )
+                for file_path in pdf_files
+            ]
+        )
 
-                # clean text for special characters
-                markdown_text = result.document.export_to_markdown()
-                cleaned_text = clean_text(markdown_text)
-
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".txt", delete=False, encoding="utf-8"
-                ) as tmp_file:
-                    tmp_file.write(cleaned_text)
-                    tmp_file_path = tmp_file.name
-
-                try:
-                    file_create_response = self.client.files.create(
-                        file=Path(tmp_file_path), purpose="assistants"
-                    )
-                    llama_documents.append(file_create_response)
-
-                    file_id = file_create_response.id
-                    github_url = (
-                        f"{github_base_url}/{original_filename}"
-                        if github_base_url
-                        else ""
-                    )
-
-                    self.file_metadata[file_id] = {
-                        "original_filename": original_filename,
-                        "github_url": github_url,
-                        "category": category,
-                    }
-                    logger.info(f"Mapped file_id '{file_id}' -> '{original_filename}'")
-                finally:
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
-
-            except Exception as e:
-                logger.error(f"Error processing {file_path}: {e}")
+        # filter out None values (failed processing)
+        llama_documents = [doc for doc in results if doc is not None]
 
         logger.info(f"Total documents processed: {len(llama_documents)}")
         return llama_documents
 
-    def create_vector_db(
+    def _insert_single_document(
+        self, vector_store_id: str, vector_store_name: str, doc: File
+    ) -> bool:
+        """
+        inserts a single document into vector store and checks status
+        """
+        try:
+            file_ingest_response = self.client.vector_stores.files.create(
+                vector_store_id=vector_store_id,
+                file_id=doc.id,
+            )
+
+            # check the actual status of the insertion
+            if hasattr(file_ingest_response, "status"):
+                if file_ingest_response.status == "failed":
+                    error_msg = "Unknown error"
+                    if (
+                        hasattr(file_ingest_response, "last_error")
+                        and file_ingest_response.last_error
+                    ):
+                        error_msg = file_ingest_response.last_error.message
+                    logger.error(
+                        f"✗ Document insertion failed for "
+                        f"'{vector_store_name}': {error_msg}"
+                    )
+                    return False
+                elif file_ingest_response.status in ("completed", "in_progress"):
+                    logger.info(
+                        f"✓ Document inserted into '{vector_store_name}' "
+                        f"(status: {file_ingest_response.status})"
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        f"⚠ Document has unexpected status "
+                        f"'{file_ingest_response.status}' for '{vector_store_name}'"
+                    )
+                    return False
+            else:
+                logger.info(
+                    f"✓ Document inserted into '{vector_store_name}' (no status field)"
+                )
+                return True
+        except Exception as e:
+            logger.error(
+                f"Error inserting document {doc.id} into '{vector_store_name}': {e}"
+            )
+            return False
+
+    async def create_vector_db(
         self, vector_store_name: "str", documents: "list[File]"
     ) -> "bool":
         """
         creates vector database and inserts documents.
+        uses async (concurrent) or sync (sequential) mode based on config.
         """
         if not documents:
             logger.warning(f"No documents to insert for {vector_store_name}")
@@ -475,7 +572,9 @@ class IngestionService:
 
         vector_store = None
         try:
-            vector_store = self.client.vector_stores.create(name=vector_store_name)
+            vector_store = await asyncio.to_thread(
+                self.client.vector_stores.create, name=vector_store_name
+            )
             self.vector_store_ids.append(vector_store.id)
         except Exception as e:
             error_msg = str(e)
@@ -484,8 +583,8 @@ class IngestionService:
                     f"Vector DB '{vector_store_name}' already exists, continuing..."
                 )
 
-                vector_stores = self.client.vector_stores.list() or []
-                for vs in vector_stores:
+                vector_stores = await asyncio.to_thread(self.client.vector_stores.list)
+                for vs in vector_stores or []:
                     if vs.name == vector_store_name:
                         vector_store = vs
                         break
@@ -500,26 +599,59 @@ class IngestionService:
                 return False
 
         try:
-            logger.info(f"Inserting {len(documents)}  into vector store...")
-            for doc in documents:
-                file_ingest_response = self.client.vector_stores.files.create(
-                    vector_store_id=vector_store.id,
-                    file_id=doc.id,
-                )
+            if self.ingestion_mode == "async":
                 logger.info(
-                    f"✓ Successfully inserted documents into "
-                    f"'{vector_store_name}' "
-                    f"with resp '{file_ingest_response}'"
+                    f"Inserting {len(documents)} documents into vector store "
+                    f"concurrently (async mode)..."
                 )
-            return True
+                results = await asyncio.gather(
+                    *[
+                        asyncio.to_thread(
+                            self._insert_single_document,
+                            vector_store.id,
+                            vector_store_name,
+                            doc,
+                        )
+                        for doc in documents
+                    ]
+                )
+            else:  # sync mode
+                logger.info(
+                    f"Inserting {len(documents)} documents into vector store "
+                    f"sequentially (sync mode)..."
+                )
+                results = []
+                for doc in documents:
+                    result = await asyncio.to_thread(
+                        self._insert_single_document,
+                        vector_store.id,
+                        vector_store_name,
+                        doc,
+                    )
+                    results.append(result)
+
+            # check if all insertions were successful
+            success = all(results)
+            if success:
+                logger.info(
+                    f"✓ Successfully inserted all {len(documents)} documents "
+                    f"into '{vector_store_name}'"
+                )
+            else:
+                failed_count = sum(1 for r in results if not r)
+                logger.warning(
+                    f"⚠ {failed_count}/{len(documents)} documents failed to insert "
+                    f"into '{vector_store_name}'"
+                )
+            return success
 
         except Exception as e:
             logger.error(f"Error inserting documents into '{vector_store_name}': {e}")
             return False
 
-    def process_pipeline(self, pipeline: "Pipeline") -> "bool":
+    async def process_pipeline(self, pipeline: "Pipeline") -> "bool":
         """
-        processes a single pipeline.
+        processes a single pipeline with concurrent operations.
         """
         logger.info(f"Processing pipeline: {pipeline.name}")
 
@@ -551,7 +683,9 @@ class IngestionService:
                         f"Pipeline '{pipeline.name}' has None path for GitHub source"
                     )
                     return False
-                pdf_files = self.fetch_from_github(
+                # github fetching is synchronous, run in thread
+                pdf_files = await asyncio.to_thread(
+                    self.fetch_from_github,
                     pipeline.source_config.url,
                     path_value,
                     pipeline.source_config.branch,
@@ -564,7 +698,7 @@ class IngestionService:
                         f"Pipeline '{pipeline.name}' has None urls for URL source"
                     )
                     return False
-                pdf_files = self.fetch_from_url(urls_value, temp_dir)
+                pdf_files = await self.fetch_from_url(urls_value, temp_dir)
             else:
                 logger.error(f"Unknown source type: {source}")
                 return False
@@ -573,13 +707,15 @@ class IngestionService:
                 logger.warning(f"No PDF files found for pipeline '{pipeline.name}'")
                 return False
 
-            documents = self.process_documents(pdf_files, github_base_url, category)
+            documents = await self.process_documents(
+                pdf_files, github_base_url, category
+            )
 
             if not documents:
                 logger.warning(f"No documents processed for pipeline '{pipeline.name}'")
                 return False
 
-            return self.create_vector_db(vector_store_name, documents)
+            return await self.create_vector_db(vector_store_name, documents)
 
     def save_file_metadata(
         self, output_path: "str" = "rag_file_metadata.json"
@@ -601,30 +737,39 @@ class IngestionService:
         except Exception as e:
             logger.error(f"Failed to save file metadata: {e}")
 
-    def run(self) -> "None":
+    async def run(self) -> "None":
         """
-        runs the ingestion service.
+        runs the ingestion service with concurrent pipeline processing.
         """
-        logger.info("Starting RAG Ingestion Service")
+        logger.info("Starting RAG Ingestion Service (concurrent mode)")
         logger.info(f"Configuration: {os.path.abspath(self.config_path)}")
         total = len(self.pipelines)
-        successful, failed, skipped = 0, 0, 0
 
-        for pipeline in self.pipelines:
-            if pipeline.enabled is False:
-                skipped += 1
-                continue
+        # filter out disabled pipelines
+        enabled_pipelines = [p for p in self.pipelines if p.enabled]
+        skipped = total - len(enabled_pipelines)
 
+        logger.info(
+            f"Processing {len(enabled_pipelines)} enabled pipelines concurrently..."
+        )
+
+        # process all enabled pipelines concurrently
+        async def process_with_error_handling(pipeline: Pipeline) -> bool:
             try:
-                if self.process_pipeline(pipeline):
-                    successful += 1
-                else:
-                    failed += 1
+                return await self.process_pipeline(pipeline)
             except Exception as e:
                 logger.error(
                     f"Unexpected error processing pipeline '{pipeline.name}': {e}"
                 )
-                failed += 1
+                return False
+
+        results = await asyncio.gather(
+            *[process_with_error_handling(p) for p in enabled_pipelines]
+        )
+
+        # count results
+        successful = sum(1 for r in results if r)
+        failed = len(results) - successful
 
         logger.debug(f"\n{'=' * 60}")
         logger.debug("Ingestion Summary")

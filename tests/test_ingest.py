@@ -196,7 +196,8 @@ class TestFetchFromUrl:
     tests for fetch_from_url method.
     """
 
-    def test_fetch_from_url_success(
+    @pytest.mark.anyio
+    async def test_fetch_from_url_success(
         self, sample_config_file, mock_llama_stack_client, temp_dir
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -208,12 +209,13 @@ class TestFetchFromUrl:
 
         with patch("src.ingest.requests.get", return_value=mock_response):
             urls = ["https://example.com/test.pdf"]
-            pdf_files = service.fetch_from_url(urls, temp_dir)
+            pdf_files = await service.fetch_from_url(urls, temp_dir)
 
             assert len(pdf_files) == 1
             assert pdf_files[0].endswith("test.pdf")
 
-    def test_fetch_from_url_with_error(
+    @pytest.mark.anyio
+    async def test_fetch_from_url_with_error(
         self, sample_config_file, mock_llama_stack_client, temp_dir
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -221,11 +223,12 @@ class TestFetchFromUrl:
 
         with patch("src.ingest.requests.get", side_effect=Exception("Network error")):
             urls = ["https://example.com/test.pdf"]
-            pdf_files = service.fetch_from_url(urls, temp_dir)
+            pdf_files = await service.fetch_from_url(urls, temp_dir)
 
             assert pdf_files == []
 
-    def test_fetch_from_url_without_pdf_extension(
+    @pytest.mark.anyio
+    async def test_fetch_from_url_without_pdf_extension(
         self, sample_config_file, mock_llama_stack_client, temp_dir
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -237,7 +240,7 @@ class TestFetchFromUrl:
 
         with patch("src.ingest.requests.get", return_value=mock_response):
             urls = ["https://example.com/test"]
-            pdf_files = service.fetch_from_url(urls, temp_dir)
+            pdf_files = await service.fetch_from_url(urls, temp_dir)
 
             assert len(pdf_files) == 1
             assert pdf_files[0].endswith(".pdf")
@@ -248,7 +251,8 @@ class TestProcessDocuments:
     tests for process_documents method.
     """
 
-    def test_process_documents_success(
+    @pytest.mark.anyio
+    async def test_process_documents_success(
         self, sample_config_file, mock_llama_stack_client, sample_pdf_file
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -265,7 +269,7 @@ class TestProcessDocuments:
             mock_result.document = mock_document
             mock_converter.convert.return_value = mock_result
 
-            documents = service.process_documents(
+            documents = await service.process_documents(
                 [sample_pdf_file],
                 github_base_url="https://github.com/test/repo/blob/main/docs",
                 category="legal",
@@ -278,7 +282,8 @@ class TestProcessDocuments:
             )
             assert service.file_metadata["test-file-id"]["category"] == "legal"
 
-    def test_process_documents_with_error(
+    @pytest.mark.anyio
+    async def test_process_documents_with_error(
         self, sample_config_file, mock_llama_stack_client, sample_pdf_file
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -287,7 +292,7 @@ class TestProcessDocuments:
         with patch.object(
             service, "converter", side_effect=Exception("Conversion error")
         ):
-            documents = service.process_documents(
+            documents = await service.process_documents(
                 [sample_pdf_file], github_base_url="", category="legal"
             )
 
@@ -299,7 +304,8 @@ class TestCreateVectorDb:
     tests for create_vector_db method.
     """
 
-    def test_create_vector_db_success(
+    @pytest.mark.anyio
+    async def test_create_vector_db_success(
         self, sample_config_file, mock_llama_stack_client
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -308,22 +314,24 @@ class TestCreateVectorDb:
         mock_doc = Mock()
         mock_doc.id = "doc-id-1"
 
-        result = service.create_vector_db("test-vector-db", [mock_doc])
+        result = await service.create_vector_db("test-vector-db", [mock_doc])
 
         assert result is True
         assert "test-vector-store-id" in service.vector_store_ids
 
-    def test_create_vector_db_with_no_documents(
+    @pytest.mark.anyio
+    async def test_create_vector_db_with_no_documents(
         self, sample_config_file, mock_llama_stack_client
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
             service = IngestionService(sample_config_file)
 
-        result = service.create_vector_db("test-vector-db", [])
+        result = await service.create_vector_db("test-vector-db", [])
 
         assert result is False
 
-    def test_create_vector_db_already_exists(
+    @pytest.mark.anyio
+    async def test_create_vector_db_already_exists(
         self, sample_config_file, mock_llama_stack_client
     ):
         mock_llama_stack_client.vector_stores.create.side_effect = Exception(
@@ -342,7 +350,7 @@ class TestCreateVectorDb:
         mock_doc = Mock()
         mock_doc.id = "doc-id-1"
 
-        result = service.create_vector_db("test-vector-db", [mock_doc])
+        result = await service.create_vector_db("test-vector-db", [mock_doc])
 
         assert result is True
 
@@ -391,7 +399,8 @@ class TestProcessPipeline:
     tests for process_pipeline method.
     """
 
-    def test_process_pipeline_disabled(
+    @pytest.mark.anyio
+    async def test_process_pipeline_disabled(
         self, sample_config_file, mock_llama_stack_client
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -406,11 +415,12 @@ class TestProcessPipeline:
             source_config=SourceConfig(url="", branch="main", path="", urls=None),
         )
 
-        result = service.process_pipeline(disabled_pipeline)
+        result = await service.process_pipeline(disabled_pipeline)
 
         assert result is True
 
-    def test_process_pipeline_with_github_source(
+    @pytest.mark.anyio
+    async def test_process_pipeline_with_github_source(
         self, sample_config_file, mock_llama_stack_client, temp_dir
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -431,11 +441,12 @@ class TestProcessPipeline:
         )
 
         with patch.object(service, "fetch_from_github", return_value=[]):
-            result = service.process_pipeline(github_pipeline)
+            result = await service.process_pipeline(github_pipeline)
 
             assert result is False
 
-    def test_process_pipeline_with_url_source(
+    @pytest.mark.anyio
+    async def test_process_pipeline_with_url_source(
         self, sample_config_file, mock_llama_stack_client
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -453,7 +464,7 @@ class TestProcessPipeline:
         )
 
         with patch.object(service, "fetch_from_url", return_value=[]):
-            result = service.process_pipeline(url_pipeline)
+            result = await service.process_pipeline(url_pipeline)
 
             assert result is False
 
@@ -463,7 +474,8 @@ class TestRun:
     tests for run method.
     """
 
-    def test_run_with_successful_pipelines(
+    @pytest.mark.anyio
+    async def test_run_with_successful_pipelines(
         self, sample_config_file, mock_llama_stack_client
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -471,9 +483,10 @@ class TestRun:
 
         with patch.object(service, "process_pipeline", return_value=True):
             with patch.object(service, "save_file_metadata"):
-                service.run()
+                await service.run()
 
-    def test_run_with_failed_pipelines(
+    @pytest.mark.anyio
+    async def test_run_with_failed_pipelines(
         self, sample_config_file, mock_llama_stack_client
     ):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
@@ -482,12 +495,13 @@ class TestRun:
         with patch.object(service, "process_pipeline", return_value=False):
             with patch.object(service, "save_file_metadata"):
                 with pytest.raises(SystemExit):
-                    service.run()
+                    await service.run()
 
-    def test_run_with_mixed_results(self, sample_config_file, mock_llama_stack_client):
+    @pytest.mark.anyio
+    async def test_run_with_mixed_results(self, sample_config_file, mock_llama_stack_client):
         with patch("src.ingest.LlamaStackClient", return_value=mock_llama_stack_client):
             service = IngestionService(sample_config_file)
 
         with patch.object(service, "process_pipeline", side_effect=[True, False]):
             with patch.object(service, "save_file_metadata"):
-                service.run()
+                await service.run()

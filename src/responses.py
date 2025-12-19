@@ -371,7 +371,7 @@ class RAGService:
                 if file_id and file_id not in seen_files:
                     seen_files.add(file_id)
 
-                    # Look up in file_metadata
+                    # look up in file_metadata
                     if file_id in self.file_metadata:
                         metadata = self.file_metadata[file_id]
                         sources.append(
@@ -395,41 +395,3 @@ class RAGService:
                     )
 
         return sources
-
-    def query_vectors_directly(
-        self, query: "str", category: "str | None" = None, max_chunks: "int" = 5
-    ) -> "str":
-        """
-        an alternative RAG approach: Query vector stores directly and build context.
-        This is the second approach shown in ingest_openai.py (lines 420-444).
-        Returns context string that can be prepended to prompts.
-        """
-        if not self.client:
-            return ""
-
-        vector_store_ids = self.get_vector_store_ids(category)
-
-        if not vector_store_ids:
-            logger.warning(f"RAG Service: No vector stores for category '{category}'")
-            return ""
-
-        all_chunks = []
-        for vector_db_id in vector_store_ids:
-            try:
-                query_results = self.client.vector_io.query(
-                    vector_db_id=vector_db_id,
-                    query=query,
-                    params={"max_chunks": max_chunks},
-                )
-                all_chunks.extend(query_results.chunks)
-            except Exception as e:
-                logger.error(f"RAG Service: Error querying {vector_db_id}: {e}")
-
-        if not all_chunks:
-            return ""
-
-        # Build context from chunks
-        context = "\n\n".join([chunk.content for chunk in all_chunks])
-        logger.info(f"RAG Service: Retrieved {len(all_chunks)} chunks for query")
-
-        return context

@@ -7,6 +7,12 @@ import pytest
 import yaml
 
 
+@pytest.fixture(scope="session")
+def anyio_backend():
+    """Configure anyio to only use asyncio backend."""
+    return "asyncio"
+
+
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test files."""
@@ -86,7 +92,9 @@ def mock_llama_stack_client():
     client.models.list.return_value = []
     client.vector_stores.list.return_value = []
     client.vector_stores.create.return_value = Mock(id="test-vector-store-id")
-    client.vector_stores.files.create.return_value = Mock(id="test-file-id")
+    client.vector_stores.files.create.return_value = Mock(
+        id="test-file-id", status="completed"
+    )
     client.files.create.return_value = Mock(id="test-file-id")
     return client
 

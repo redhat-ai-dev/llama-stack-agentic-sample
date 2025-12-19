@@ -34,6 +34,11 @@ DEFAULT_GUARDRAIL_MODEL = "ollama/llama-guard3:8b"
 # used for generating vector embeddings.
 DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
+# DEFAULT_INGESTION_MODE: The default mode for document ingestion.
+# "sync" = sequential (slower but more stable, won't overwhelm embedding model)
+# "async" = concurrent (faster but may crash embedding model under load)
+DEFAULT_INGESTION_MODE = "sync"
+
 # DEFAULT_MCP_TOOL_MODEL: The default model used for
 # MCP tool calls.
 DEFAULT_MCP_TOOL_MODEL = "vllm/qwen3-8b-fp8"
