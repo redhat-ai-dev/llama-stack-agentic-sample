@@ -324,6 +324,9 @@ class Workflow:
             submission_states=submission_states,
             rag_category="legal",
             is_terminal=True,
+            client_override=(
+                self.rag_service.openai_client if self.rag_service else None
+            ),
         )
         support_agent = self.create_agent(
             "support",
