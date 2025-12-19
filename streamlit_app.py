@@ -820,32 +820,7 @@ def main() -> "None":
     if "conversations" not in st.session_state:
         st.session_state.conversations = {}
 
-    if st.session_state.selected_submission:
-        conversation_id = st.session_state.selected_submission
-        conversation_exchanges = st.session_state.conversations.get(conversation_id, [])
-
-        # render all exchanges in selected conversation
-        with st.container():
-            for exchange in conversation_exchanges:
-                with st.chat_message("user"):
-                    st.write(exchange.get("input", ""))
-
-                # get current workflow state and render agent response
-                submission_id = exchange.get("submission_id", "")
-                current_state = submission_states.get(submission_id, exchange)
-
-                _render_exchange_response(current_state, AGENT_ICONS)
-    elif not st.session_state.selected_submission:
-        st.markdown(
-            """
-            <div style='text-align: center; padding: 50px; color: #666;'>
-                <h3>💬 New Conversation</h3>
-                <p>Ask a question using the chat input below.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+    # chat input at top to process before rendering
     question = st.chat_input("Ask a question...", key="chat_input")
 
     if question:
@@ -898,6 +873,34 @@ def main() -> "None":
         # submit async workflow task and trigger rerun
         submit_workflow_task(workflow, question, submission_id)
         st.rerun()
+
+    # render conversation content (after question processing to
+    # avoid welcome message flashing)
+    if st.session_state.selected_submission:
+        conversation_id = st.session_state.selected_submission
+        conversation_exchanges = st.session_state.conversations.get(conversation_id, [])
+
+        with st.container(key=f"conversation_{conversation_id}"):
+            for exchange in conversation_exchanges:
+                with st.chat_message("user"):
+                    st.write(exchange.get("input", ""))
+
+                # get current workflow state and render agent response
+                submission_id = exchange.get("submission_id", "")
+                current_state = submission_states.get(submission_id, exchange)
+
+                _render_exchange_response(current_state, AGENT_ICONS)
+    else:
+        # only show welcome message if no conversation is selected
+        st.markdown(
+            """
+            <div style='text-align: center; padding: 50px; color: #666;'>
+                <h3>💬 New Conversation</h3>
+                <p>Ask a question using the chat input below.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # auto-rerun while workflows are active to show progress
     if has_active_workflows:
