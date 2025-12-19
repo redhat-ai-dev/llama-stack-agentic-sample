@@ -70,7 +70,7 @@ class Workflow:
         """
         calls OpenAI chat completions API as a fallback
         """
-        if not self.rag_service or not self.rag_service.client:
+        if not self.rag_service or not self.rag_service.openai_client:
             raise ValueError("OpenAI client not initialized")
 
         messages = self._convert_messages_to_openai_format(state)
