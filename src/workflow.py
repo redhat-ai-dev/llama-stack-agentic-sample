@@ -161,7 +161,7 @@ class Workflow:
 
             file_search_tool = None
             if use_rag:
-                file_search_tool = self.rag_service.get_file_search_tool(rag_category)
+                file_search_tool = self.rag_service.get_file_search_tool(rag_category)  # type: ignore[possibly-missing-attribute]
                 if file_search_tool:
                     logger.info(
                         f"{department_display_name}: "
