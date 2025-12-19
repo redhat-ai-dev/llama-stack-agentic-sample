@@ -739,9 +739,13 @@ class IngestionService:
 
     async def run(self) -> "None":
         """
-        runs the ingestion service with concurrent pipeline processing.
+        runs the ingestion service.
+        Mode is determined by ingestion_mode setting:
+        - async: pipelines and documents processed concurrently
+        - sync: pipelines and documents processed sequentially
         """
-        logger.info("Starting RAG Ingestion Service (concurrent mode)")
+        mode_label = "concurrent" if self.ingestion_mode == "async" else "sequential"
+        logger.info(f"Starting RAG Ingestion Service ({mode_label} mode)")
         logger.info(f"Configuration: {os.path.abspath(self.config_path)}")
         total = len(self.pipelines)
 
@@ -750,10 +754,10 @@ class IngestionService:
         skipped = total - len(enabled_pipelines)
 
         logger.info(
-            f"Processing {len(enabled_pipelines)} enabled pipelines concurrently..."
+            f"Processing {len(enabled_pipelines)} enabled pipelines {mode_label}ly..."
         )
 
-        # process all enabled pipelines concurrently
+        # process all enabled pipelines (concurrent or sequential based on mode)
         async def process_with_error_handling(pipeline: Pipeline) -> bool:
             try:
                 return await self.process_pipeline(pipeline)
@@ -763,9 +767,15 @@ class IngestionService:
                 )
                 return False
 
-        results = await asyncio.gather(
-            *[process_with_error_handling(p) for p in enabled_pipelines]
-        )
+        if self.ingestion_mode == "async":
+            results = await asyncio.gather(
+                *[process_with_error_handling(p) for p in enabled_pipelines]
+            )
+        else:
+            results = []
+            for pipeline in enabled_pipelines:
+                result = await process_with_error_handling(pipeline)
+                results.append(result)
 
         # count results
         successful = sum(1 for r in results if r)
