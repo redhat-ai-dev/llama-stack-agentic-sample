@@ -62,6 +62,19 @@ RAG_FILE_METADATA = os.getenv("RAG_FILE_METADATA", "rag_file_metadata.json")
 # EXECUTOR_WORKERS: Maximum number of concurrent workflow threads
 EXECUTOR_WORKERS = int(os.getenv("EXECUTOR_WORKERS", "10"))
 
+# AGENT_ICONS: Icons for different agent types
+AGENT_ICONS = {
+    "Classification": "🔍",
+    "Legal": "⚖️",
+    "Human Resources": "👥",
+    "Sales": "💼",
+    "Procurement": "🛒",
+    "Software Support": "💻",
+    "Pod": "☸️",
+    "Performance": "⚡",
+    "Git": "🔗",
+}
+
 
 @st.cache_resource
 def get_config() -> "dict[str, str]":
@@ -609,6 +622,148 @@ def submit_workflow_task(
     logger.info(f"Submitted workflow task for {submission_id} to thread pool")
 
 
+@st.fragment(run_every="0.5s")
+def display_sidebar_conversations() -> "None":
+    """
+    fragment that displays conversation list with auto-refresh for status updates
+    """
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.subheader("💬 Conversations")
+    with col2:
+        if st.button("➕", help="New conversation", use_container_width=True):
+            st.session_state.selected_submission = None
+            # increment version to ensure clean UI state
+            st.session_state.conversation_version = (
+                st.session_state.get("conversation_version", 0) + 1
+            )
+            # full page rerun to update both sidebar and chat
+            st.rerun()
+
+    # initialize conversation tracking state
+    if "active_submissions" not in st.session_state:
+        st.session_state.active_submissions = []
+
+    if "selected_submission" not in st.session_state:
+        st.session_state.selected_submission = None
+
+    if st.session_state.active_submissions:
+        for conversation_id in st.session_state.active_submissions:
+            conversation_exchanges = st.session_state.conversations.get(
+                conversation_id, []
+            )
+
+            if not conversation_exchanges:
+                continue
+
+            # get latest workflow state for this conversation
+            latest_exchange = conversation_exchanges[-1]
+            latest_submission_id = latest_exchange.get("submission_id", "")
+            latest_state = submission_states.get(latest_submission_id, latest_exchange)
+
+            is_complete = latest_state.get("workflow_complete", False)
+            decision = latest_state.get("decision", "").lower()
+
+            # determine status icon based on workflow state
+            if decision in ("error", "unsafe", "unknown"):
+                status_icon = "❌"
+            elif is_complete:
+                status_icon = "✅"
+            else:
+                status_icon = "⏳"
+
+            first_question = conversation_exchanges[0].get("input", "")
+            question_preview = (
+                first_question[:25] + "..."
+                if len(first_question) > 25
+                else first_question
+            )
+
+            # show message count if multi-turn conversation
+            exchange_count_str = ""
+            if len(conversation_exchanges) > 1:
+                exchange_count_str = f" ({len(conversation_exchanges)} msgs)"
+
+            # highlight selected conversation
+            button_type = (
+                "primary"
+                if st.session_state.selected_submission == conversation_id
+                else "secondary"
+            )
+            if st.button(
+                f"{status_icon} {question_preview}{exchange_count_str}",
+                key=f"select_{conversation_id}",
+                type=button_type,
+                use_container_width=True,
+            ):
+                st.session_state.selected_submission = conversation_id
+                # increment version to force full UI refresh
+                st.session_state.conversation_version = (
+                    st.session_state.get("conversation_version", 0) + 1
+                )
+                # full page rerun to update both sidebar and chat
+                st.rerun()
+    else:
+        st.info("No conversations yet")
+
+    # clear all conversations button
+    if st.button("Clear All Conversations"):
+        st.session_state.active_submissions = []
+        st.session_state.selected_submission = None
+        st.session_state.conversations = {}
+        # increment version to ensure complete UI refresh
+        st.session_state.conversation_version = (
+            st.session_state.get("conversation_version", 0) + 1
+        )
+        # full page rerun to update both sidebar and chat
+        st.rerun()
+
+    st.divider()
+
+    with st.expander("🤖 Agent Reference", expanded=False):
+        st.markdown("**Available Agents:**")
+        for agent, icon in AGENT_ICONS.items():
+            st.markdown(f"{icon} **{agent}**")
+        st.markdown(
+            """
+            <div style='font-size: 0.85em; color: #666; margin-top: 10px;'>
+            Each agent specializes in different areas:
+            • Classification routes your question
+            • Department agents handle specific topics
+            • Technical agents interact with systems
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+@st.fragment(run_every="0.5s")
+def display_chat_fragment() -> "None":
+    """
+    Fragment that displays chat messages with auto-refresh for active workflows
+    """
+    # render conversation content with versioned key for clean refreshes
+    container_key = f"chat_area_{st.session_state.conversation_version}"
+    chat_container = st.container(key=container_key)
+
+    with chat_container:
+        if st.session_state.selected_submission:
+            conversation_id = st.session_state.selected_submission
+            conversation_exchanges = st.session_state.conversations.get(
+                conversation_id, []
+            )
+
+            for exchange in conversation_exchanges:
+                with st.chat_message("user"):
+                    st.write(exchange.get("input", ""))
+
+                # get current workflow state and render agent response
+                submission_id = exchange.get("submission_id", "")
+                current_state = submission_states.get(submission_id, exchange)
+
+                _render_exchange_response(current_state, AGENT_ICONS)
+
+
 def main() -> "None":
     st.set_page_config(
         page_title="Agentic AI Workflow",
@@ -620,7 +775,6 @@ def main() -> "None":
     progress_event_loop()
 
     # ingestion state runs automatically on startup
-    # flow: "pending" → check stores → "skipped" OR "running" → "completed"
     ingestion_state = get_ingestion_state()
 
     with st.sidebar:
@@ -688,118 +842,8 @@ def main() -> "None":
     else:
         workflow = st.session_state.workflow
 
-    # check if any workflows still running
-    futures = get_futures_dict()
-    has_active_workflows = any(not future.done() for future in futures.values())
-
-    AGENT_ICONS = {
-        "Classification": "🔍",
-        "Legal": "⚖️",
-        "Human Resources": "👥",
-        "Sales": "💼",
-        "Procurement": "🛒",
-        "Software Support": "💻",
-        "Pod": "☸️",
-        "Performance": "⚡",
-        "Git": "🔗",
-    }
-
-    # sidebar: Conversation list and controls
     with st.sidebar:
-        col1, col2 = st.columns([4, 1])
-        with col1:
-            st.subheader("💬 Conversations")
-        with col2:
-            if st.button("➕", help="New conversation", use_container_width=True):
-                st.session_state.selected_submission = None
-                st.rerun()
-
-        # initialize conversation tracking state
-        if "active_submissions" not in st.session_state:
-            st.session_state.active_submissions = []
-
-        if "selected_submission" not in st.session_state:
-            st.session_state.selected_submission = None
-
-        if st.session_state.active_submissions:
-            for conversation_id in st.session_state.active_submissions:
-                conversation_exchanges = st.session_state.conversations.get(
-                    conversation_id, []
-                )
-
-                if not conversation_exchanges:
-                    continue
-
-                # get latest workflow state for this conversation
-                latest_exchange = conversation_exchanges[-1]
-                latest_submission_id = latest_exchange.get("submission_id", "")
-                latest_state = submission_states.get(
-                    latest_submission_id, latest_exchange
-                )
-
-                is_complete = latest_state.get("workflow_complete", False)
-                decision = latest_state.get("decision", "").lower()
-
-                # determine status icon based on workflow state
-                if decision in ("error", "unsafe", "unknown"):
-                    status_icon = "❌"
-                elif is_complete:
-                    status_icon = "✅"
-                else:
-                    status_icon = "⏳"
-
-                first_question = conversation_exchanges[0].get("input", "")
-                question_preview = (
-                    first_question[:25] + "..."
-                    if len(first_question) > 25
-                    else first_question
-                )
-
-                # show message count if multi-turn conversation
-                exchange_count_str = ""
-                if len(conversation_exchanges) > 1:
-                    exchange_count_str = f" ({len(conversation_exchanges)} msgs)"
-
-                # highlight selected conversation
-                button_type = (
-                    "primary"
-                    if st.session_state.selected_submission == conversation_id
-                    else "secondary"
-                )
-                if st.button(
-                    f"{status_icon} {question_preview}{exchange_count_str}",
-                    key=f"select_{conversation_id}",
-                    type=button_type,
-                    use_container_width=True,
-                ):
-                    st.session_state.selected_submission = conversation_id
-                    st.rerun()
-        else:
-            st.info("No conversations yet")
-
-        # clear all conversations button
-        if st.button("Clear All Conversations"):
-            st.session_state.active_submissions = []
-            st.session_state.selected_submission = None
-            st.rerun()
-
-        st.divider()
-
-        with st.expander("🤖 Agent Reference", expanded=False):
-            st.markdown("**Available Agents:**")
-            for agent, icon in AGENT_ICONS.items():
-                st.markdown(f"{icon} **{agent}**")
-            st.markdown(
-                """
-                <div style='font-size: 0.85em; color: #666; margin-top: 10px;'>
-                Each agent specializes in different areas:
-                • Classification routes your question
-                • Department agents handle specific topics
-                • Technical agents interact with systems
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        display_sidebar_conversations()
 
     st.title("🤖 Agentic AI Workflow")
     st.markdown(
@@ -820,22 +864,12 @@ def main() -> "None":
     if "conversations" not in st.session_state:
         st.session_state.conversations = {}
 
-    # render conversation content
-    if st.session_state.selected_submission:
-        conversation_id = st.session_state.selected_submission
-        conversation_exchanges = st.session_state.conversations.get(conversation_id, [])
+    # track conversation version to force full rerenders on switch
+    if "conversation_version" not in st.session_state:
+        st.session_state.conversation_version = 0
 
-        # use keyed container to force re-render when switching conversations
-        with st.container(key=f"conversation_{conversation_id}"):
-            for exchange in conversation_exchanges:
-                with st.chat_message("user"):
-                    st.write(exchange.get("input", ""))
-
-                # get current workflow state and render agent response
-                submission_id = exchange.get("submission_id", "")
-                current_state = submission_states.get(submission_id, exchange)
-
-                _render_exchange_response(current_state, AGENT_ICONS)
+    # render chat messages using fragment (auto-refreshes when workflows are active)
+    display_chat_fragment()
 
     # chat input at bottom (standard chat interface pattern)
     question = st.chat_input("Ask a question...", key="chat_input")
@@ -887,13 +921,9 @@ def main() -> "None":
         st.session_state.conversations[conversation_id].append(exchange_state)
         submission_states[submission_id] = exchange_state
 
-        # submit async workflow task and trigger rerun
+        # submit async workflow task
         submit_workflow_task(workflow, question, submission_id)
-        st.rerun()
-
-    # auto-rerun while workflows are active to show progress
-    if has_active_workflows:
-        time.sleep(0.5)
+        # rerun to update sidebar with new conversation
         st.rerun()
 
 
