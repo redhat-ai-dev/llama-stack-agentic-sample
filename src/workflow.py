@@ -72,7 +72,7 @@ class Workflow:
             raise ValueError("OpenAI client not initialized")
 
         messages = self._convert_messages_to_openai_format(state)
-        completion = self.rag_service.client.chat.completions.create(
+        completion = self.rag_service.openai_client.chat.completions.create(
             model=INFERENCE_MODEL, messages=messages
         )
         return completion.choices[0].message.content or ""
