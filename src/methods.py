@@ -79,7 +79,7 @@ def classification_agent(
 
     # Use OpenAI client for structured output with Pydantic models
     try:
-        classification_prompt = WorkflowAgentPrompts.CLASIFICATION_PROMPT.format(
+        classification_prompt = WorkflowAgentPrompts.CLASSIFICATION_PROMPT.format(
             state_input=state["input"]
         )
         logger.debug(f"Classification prompt: {classification_prompt}")
@@ -202,7 +202,7 @@ def support_classification_agent(
                 ChatCompletionUserMessageParam,
                 {
                     "role": "user",
-                    "content": WorkflowAgentPrompts.SUPPORT_CLASIFICATION_PROMPT.format(
+                    "content": WorkflowAgentPrompts.SUPPORT_CLASSIFICATION_PROMPT.format(  # noqa
                         state_input=state["input"]
                     ),
                 },

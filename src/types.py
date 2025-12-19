@@ -37,7 +37,7 @@ class VectorDBConfig:
 
 
 class WorkflowAgentPrompts:
-    CLASIFICATION_PROMPT = """
+    CLASSIFICATION_PROMPT = """
     Classify the following user message into one of these categories:
     - 'legal': Questions about software licenses, embargoes, privacy/PII,
     contracts, policies, procedures, or compliance
@@ -67,7 +67,7 @@ class WorkflowAgentPrompts:
 
     User message: {state_input}
     """
-    SUPPORT_CLASIFICATION_PROMPT = """
+    SUPPORT_CLASSIFICATION_PROMPT = """
     Determine what category the user message falls under
     based on the classification schema provided to the
     structured output set for the LLM and the various
