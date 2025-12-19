@@ -23,25 +23,47 @@ from src.types import Pipeline, WorkflowState
 from src.utils import logger, submission_states
 from src.workflow import Workflow
 
+# API_KEY: OpenAI API key (not used directly but may be needed
 API_KEY = os.getenv("OPENAI_API_KEY", "not applicable")
+
+# INFERENCE_SERVER_OPENAI: URL of the inference server
 INFERENCE_SERVER_OPENAI = os.getenv(
     "LLAMA_STACK_SERVER_OPENAI", "http://localhost:8321/v1/openai/v1"
 )
+
+# INFERENCE_MODEL: Model to use for inference
 INFERENCE_MODEL = os.getenv("INFERENCE_MODEL", DEFAULT_INFERENCE_MODEL)
+
+# GUARDRAIL_MODEL: Model to use for guardrails
 GUARDRAIL_MODEL = os.getenv("GUARDRAIL_MODEL", DEFAULT_GUARDRAIL_MODEL)
+
+# MCP_TOOL_MODEL: Model to use for MCP tool calls
 MCP_TOOL_MODEL = os.getenv("MCP_TOOL_MODEL", DEFAULT_MCP_TOOL_MODEL)
+
+# GIT_TOKEN: Git token for accessing private repositories
 GIT_TOKEN = os.getenv("GIT_TOKEN", "not applicable")
+
+# GITHUB_URL: URL of the GitHub repository
 GITHUB_URL = os.getenv("GITHUB_URL", "not applicable")
+
+# GITHUB_ID: GitHub user ID
 GITHUB_ID = os.getenv("GITHUB_ID", "not applicable")
+
+# LLAMA_STACK_URL: URL of the Llama Stack server
 LLAMA_STACK_URL = os.getenv("LLAMA_STACK_URL", DEFAULT_LLAMA_STACK_URL)
+
+# INGESTION_CONFIG: Path to the ingestion configuration file
 INGESTION_CONFIG = os.getenv("INGESTION_CONFIG", DEFAULT_INGESTION_CONFIG)
+
+# RAG_FILE_METADATA: Path to the RAG file metadata
 RAG_FILE_METADATA = os.getenv("RAG_FILE_METADATA", "rag_file_metadata.json")
 
 
 @st.cache_resource
 def get_config() -> "dict[str, str]":
     """
-    gets configuration (cached)"""
+    gets application configuration (cached)
+    """
     return {
         "inference_server": INFERENCE_SERVER_OPENAI,
         "llama_stack_url": LLAMA_STACK_URL,
@@ -75,19 +97,20 @@ def initialize_workflow(_pipelines: "list[Pipeline]") -> "tuple[Any, RAGService]
     try:
         rag_service_initialized = rag_service.initialize()
     except NoVectorStoresFoundError as e:
-        # if no vector stores found, set ingestion state to pending and rerun
+        # vector stores missing - trigger re-ingestion by resetting state
         logger.warning(f"Error during RAG initialization: {e}")
         ingestion_state = get_ingestion_state()
         ingestion_state["status"] = "pending"
         ingestion_state["message"] = "No vector stores found - re-ingestion required"
         ingestion_state["pipelines"] = None
+        # clear cache to force re-initialization
         st.cache_resource.clear()
         st.rerun()
 
     if not rag_service_initialized:
         logger.warning("RAG Service initialization failed.")
 
-    # create Workflow instance and compile it
+    # build workflow graph with all agents and routing logic
     workflow_builder = Workflow(rag_service=rag_service)
     compiled_workflow = workflow_builder.make_workflow(
         tools_llm=INFERENCE_MODEL,
@@ -105,6 +128,7 @@ def get_or_create_event_loop() -> "Any":
     gets an existing event loop from session state or create a new one
     """
     if "event_loop" not in st.session_state:
+        # create persistent event loop for async task management
         st.session_state.event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(st.session_state.event_loop)
     return st.session_state.event_loop
@@ -115,6 +139,7 @@ def get_tasks_dict() -> "Any":
     gets tasks dictionary from session state
     """
     if "async_tasks" not in st.session_state:
+        # structure to store all running async tasks
         st.session_state.async_tasks = {}
     return st.session_state.async_tasks
 
@@ -159,6 +184,7 @@ async def check_and_run_ingestion_if_needed() -> "None":
     try:
         logger.info("Checking if ingestion is needed...")
 
+        # check if vector stores for all pipelines exist
         ingestion_service = get_ingestion_service()
         pipelines = ingestion_service.pipelines
         temp_client = LlamaStackClient(base_url=LLAMA_STACK_URL)
@@ -169,10 +195,10 @@ async def check_and_run_ingestion_if_needed() -> "None":
         all_stores_exist = temp_rag_service.check_vector_stores_exist(pipelines)
 
         if all_stores_exist:
+            # all vector stores present - skip ingestion
             logger.info("All vector stores exist, skipping ingestion")
             vector_store_count = count_vector_stores()
 
-            # all required vector stores found, no ingestion needed
             ingestion_state["status"] = "skipped"
             ingestion_state["message"] = (
                 f"All vector stores exist - loaded {len(pipelines)}"
@@ -181,13 +207,14 @@ async def check_and_run_ingestion_if_needed() -> "None":
             ingestion_state["pipelines"] = pipelines
             ingestion_state["vector_store_count"] = vector_store_count
         else:
+            # vector stores missing - start async ingestion in background
             logger.info("Some vector stores missing, starting ingestion...")
-            # vector stores missing, start async ingestion task
             ingestion_state["status"] = "running"
 
             loop = get_or_create_event_loop()
             tasks = get_tasks_dict()
             ingestion_task = loop.create_task(run_ingestion_pipeline())
+            # track ingestion task separately
             tasks["__ingestion__"] = ingestion_task
             logger.info("Ingestion pipeline task submitted")
 
@@ -206,11 +233,11 @@ async def run_ingestion_pipeline() -> "None":
     ingestion_state = get_ingestion_state()
 
     try:
-        # mark as running while pipeline executes
         ingestion_state["status"] = "running"
         ingestion_state["message"] = "Checking llama-stack server availability..."
         logger.info("Starting Ingestion Service...")
 
+        # verify llama-stack server is reachable before ingestion
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{LLAMA_STACK_URL}/v1/health")
@@ -229,18 +256,19 @@ async def run_ingestion_pipeline() -> "None":
 
         ingestion_service = get_ingestion_service()
 
+        # run ingestion in background thread to avoid blocking
         ingestion_state["message"] = (
             "Running ingestion pipeline (this may take a while)..."
         )
         logger.info("Running ingestion pipeline...")
         ingested_items = await asyncio.to_thread(ingestion_service.run)
 
-        # store pipelines from ingestion service
+        # save pipeline config for workflow initialization
         ingestion_state["pipelines"] = ingestion_service.pipelines
 
         vector_store_count = await asyncio.to_thread(count_vector_stores)
 
-        # pipeline finished successfully, mark complete to unblock workflow
+        # mark complete - UI can now initialize workflow
         ingestion_state["status"] = "completed"
         ingestion_state["ingested_count"] = len(ingested_items) if ingested_items else 0
         ingestion_state["vector_store_count"] = vector_store_count
@@ -264,10 +292,13 @@ async def run_ingestion_pipeline() -> "None":
 def _render_exchange_response(
     state: "WorkflowState", AGENT_ICONS: "dict[str, str]"
 ) -> "None":
-    """Render the agent response for a single exchange"""
+    """
+    renders the agent response for a single exchange
+    """
     if not state:
         return
 
+    # extract workflow state data
     decision = state.get("decision", "").lower()
     classification_msg = state.get("classification_message", "")
     is_complete = state.get("workflow_complete", False)
@@ -276,6 +307,8 @@ def _render_exchange_response(
     status_history = state.get("status_history", [])
     is_error = decision in ("error", "unsafe", "unknown")
 
+    # display status history with appropriate agent icons
+    # TODO: find a way to handle this more efficiently
     for status_msg in status_history:
         if "Classification" in status_msg:
             status_icon = AGENT_ICONS.get("Classification", "🔍")
@@ -306,9 +339,11 @@ def _render_exchange_response(
             else:
                 st.info(f"**{status_msg}**")
 
+    # show classification result and routing decision
     if decision and decision not in ("", "processing") and not is_error:
         agent_icon = AGENT_ICONS.get("Classification", "🔍")
         with st.chat_message("assistant", avatar=agent_icon):
+            # map internal decision names to display names
             dept_map = {
                 "legal": "Legal",
                 "hr": "Human Resources",
@@ -371,7 +406,9 @@ def _render_exchange_response(
                     f" Decision: {decision}"
                 )
 
+            # display workflow completion artifacts
             if is_complete and not is_error:
+                # show RAG document sources used for response
                 rag_sources = state.get("rag_sources", [])
                 if rag_sources:
                     with st.expander("📚 Sources", expanded=False):
@@ -383,15 +420,17 @@ def _render_exchange_response(
                             else:
                                 st.markdown(f"{idx}. {filename}")
 
+                # display Kubernetes diagnostics from pod/perf agents
                 mcp_output = state.get("mcp_output", "")
                 if mcp_output:
                     with st.expander("📋 Diagnostics Output", expanded=False):
                         try:
                             parsed = json.loads(mcp_output)
-                            st.json(parsed)
+                            st.json(parsed)  # Pretty print JSON
                         except (json.JSONDecodeError, ValueError):
                             st.code(mcp_output, language="text")
 
+                # show GitHub issue created by git agent
                 github_issue = state.get("github_issue", "")
                 if github_issue:
                     st.markdown(f"[🎫 GitHub Issue Created]({github_issue})")
@@ -413,10 +452,14 @@ def _render_exchange_response(
 async def run_workflow_task(
     workflow: "Workflow", question: "str", submission_id: "str"
 ) -> "None":
-    """Async task to run a single workflow"""
+    """
+    async task to run a single workflow
+    """
     try:
         logger.info(f"Starting workflow task for submission {submission_id}")
 
+        # run workflow in background thread - it will classify and route
+        # the question through appropriate agents (classification -> dept agents)
         result = await asyncio.to_thread(
             workflow.invoke,  # type: ignore[attr-defined]
             {
@@ -441,13 +484,12 @@ async def run_workflow_task(
             },
         )
 
+        # store result globally for UI rendering across reruns
         submission_states[submission_id] = result  # type: ignore[assignment]
 
         conversation_id = result.get("conversation_id")
         if conversation_id:
-            # NOTE: st.session_state.conversations is accessed from main thread
-            # This update happens in async thread, so we just update submission_states
-            # The UI will read from submission_states when rendering
+            # UI will read from submission_states
             pass
 
         logger.info(
@@ -490,6 +532,7 @@ def progress_event_loop() -> "None":
     pending_tasks = [task for task in tasks.values() if not task.done()]
 
     if pending_tasks:
+        # run event loop to progress async tasks without blocking UI
         try:
             loop.run_until_complete(asyncio.sleep(0))
         except Exception as e:
@@ -503,24 +546,25 @@ def submit_workflow_task(
     loop = get_or_create_event_loop()
     tasks = get_tasks_dict()
 
+    # create async task and track it for progress monitoring
     task = loop.create_task(run_workflow_task(workflow, question, submission_id))
     tasks[submission_id] = task
 
     logger.info(f"Submitted workflow task for {submission_id}")
 
 
-def main():
+def main() -> "None":
     st.set_page_config(
         page_title="Agentic AI Workflow",
         page_icon="🤖",
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    # progress async tasks on each rerun
     progress_event_loop()
 
-    # ingestion state machine: "pending" → check if needed → "skipped"
-    # OR "running" → "completed"/"error"
-    # automatically runs on startup, no user action required
+    # ingestion state runs automatically on startup
+    # flow: "pending" → check stores → "skipped" OR "running" → "completed"
     ingestion_state = get_ingestion_state()
 
     with st.sidebar:
@@ -578,6 +622,7 @@ def main():
         pipelines = ingestion_service.pipelines
         logger.info(f"Loaded {len(pipelines)} pipelines from config")
 
+    # initialize workflow once (cached) - builds full agent graph
     if "workflow" not in st.session_state:
         workflow, rag_service = initialize_workflow(pipelines)
         st.session_state.workflow = workflow
@@ -587,6 +632,7 @@ def main():
     else:
         workflow = st.session_state.workflow
 
+    # check if any workflows still running (exclude ingestion task)
     tasks = get_tasks_dict()
     has_active_tasks = any(
         not task.done() for task_id, task in tasks.items() if task_id != "__ingestion__"
@@ -604,6 +650,7 @@ def main():
         "Git": "🔗",
     }
 
+    # sidebar: Conversation list and controls
     with st.sidebar:
         col1, col2 = st.columns([4, 1])
         with col1:
@@ -613,6 +660,7 @@ def main():
                 st.session_state.selected_submission = None
                 st.rerun()
 
+        # initialize conversation tracking state
         if "active_submissions" not in st.session_state:
             st.session_state.active_submissions = []
 
@@ -628,6 +676,7 @@ def main():
                 if not conversation_exchanges:
                     continue
 
+                # get latest workflow state for this conversation
                 latest_exchange = conversation_exchanges[-1]
                 latest_submission_id = latest_exchange.get("submission_id", "")
                 latest_state = submission_states.get(
@@ -637,6 +686,7 @@ def main():
                 is_complete = latest_state.get("workflow_complete", False)
                 decision = latest_state.get("decision", "").lower()
 
+                # determine status icon based on workflow state
                 if decision in ("error", "unsafe", "unknown"):
                     status_icon = "❌"
                 elif is_complete:
@@ -651,10 +701,12 @@ def main():
                     else first_question
                 )
 
+                # show message count if multi-turn conversation
                 exchange_count_str = ""
                 if len(conversation_exchanges) > 1:
                     exchange_count_str = f" ({len(conversation_exchanges)} msgs)"
 
+                # highlight selected conversation
                 button_type = (
                     "primary"
                     if st.session_state.selected_submission == conversation_id
@@ -671,6 +723,7 @@ def main():
         else:
             st.info("No conversations yet")
 
+        # clear all conversations button
         if st.button("Clear All Conversations"):
             st.session_state.active_submissions = []
             st.session_state.selected_submission = None
@@ -717,11 +770,13 @@ def main():
         conversation_id = st.session_state.selected_submission
         conversation_exchanges = st.session_state.conversations.get(conversation_id, [])
 
+        # render all exchanges in selected conversation
         with st.container():
             for exchange in conversation_exchanges:
                 with st.chat_message("user"):
                     st.write(exchange.get("input", ""))
 
+                # get current workflow state and render agent response
                 submission_id = exchange.get("submission_id", "")
                 current_state = submission_states.get(submission_id, exchange)
 
@@ -740,23 +795,27 @@ def main():
     question = st.chat_input("Ask a question...", key="chat_input")
 
     if question:
+        # determine conversation ID (existing or new)
         if st.session_state.selected_submission:
+            # add to existing conversation
             conversation_id = st.session_state.selected_submission
             exchange_index = len(
                 st.session_state.conversations.get(conversation_id, [])
             )
         else:
+            # create new conversation
             conversation_id = str(uuid.uuid4())
             exchange_index = 0
             if "active_submissions" not in st.session_state:
                 st.session_state.active_submissions = []
+            # add to top of conversation list
             st.session_state.active_submissions.insert(0, conversation_id)
             st.session_state.selected_submission = conversation_id
             st.session_state.conversations[conversation_id] = []
 
-        # Create a new submission for this exchange
         submission_id = str(uuid.uuid4())
 
+        # initialize workflow state for this exchange
         exchange_state: "WorkflowState" = {  # type: ignore[assignment]
             "input": question,
             "submission_id": submission_id,
@@ -778,13 +837,15 @@ def main():
             "status_history": [],
         }
 
-        # Add exchange to conversation
+        # store exchange in conversation and global state
         st.session_state.conversations[conversation_id].append(exchange_state)
         submission_states[submission_id] = exchange_state
 
+        # submit async workflow task and trigger rerun
         submit_workflow_task(workflow, question, submission_id)
         st.rerun()
 
+    # auto-rerun while tasks are active to show progress
     if has_active_tasks:
         time.sleep(0.5)
         st.rerun()
@@ -802,6 +863,7 @@ def display_submission_details(submission_id: "str") -> "None":
     decision = state.get("decision", "")
     decision_lower = decision.lower()
 
+    # show workflow status with appropriate styling
     if decision_lower == "error":
         st.error("❌ Workflow Failed - Error occurred during processing")
     elif decision_lower == "unsafe":
@@ -811,12 +873,14 @@ def display_submission_details(submission_id: "str") -> "None":
     elif is_complete:
         st.success(f"✅ Workflow Complete - Decision: {decision.upper()}")
     else:
+        # still processing - show refresh button
         st.info(f"⏳ Processing... Current stage: {decision or 'Classifying'}")
         if st.button("🔄 Refresh", key=f"refresh_{submission_id}"):
             st.rerun()
 
     st.markdown("### 📋 Submission Details")
 
+    # display submission metadata
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"**Submission ID:** `{submission_id}`")
@@ -833,6 +897,7 @@ def display_submission_details(submission_id: "str") -> "None":
 
     if agent_timings or rag_query_time > 0:
         with st.expander("⏱️ Response Times", expanded=True):
+            # show individual agent processing times
             if agent_timings:
                 st.markdown("**Agent Processing Times:**")
                 for agent_name, duration in agent_timings.items():
@@ -856,6 +921,7 @@ def display_submission_details(submission_id: "str") -> "None":
                     value=f"{total_agent_time:.2f}s",
                 )
 
+    # display agent's response
     if state.get("classification_message"):
         with st.expander("🔍 Response", expanded=True):
             active_agent = state.get("active_agent", "")
@@ -863,6 +929,7 @@ def display_submission_details(submission_id: "str") -> "None":
                 st.markdown(f"**Handled by:** {active_agent} Department")
             st.write(state["classification_message"])
 
+    # display RAG source documents if RAG was used
     rag_sources = state.get("rag_sources", [])
     if rag_sources:
         with st.expander(
@@ -873,11 +940,13 @@ def display_submission_details(submission_id: "str") -> "None":
                 github_url = source.get("url", "")
                 snippet = source.get("snippet", "")
 
+                # show filename with GitHub link if available
                 if github_url:
                     st.markdown(f"**{i}.** [{filename}]({github_url})")
                 else:
                     st.markdown(f"**{i}.** {filename}")
 
+                # show snippet preview if available
                 if snippet:
                     st.caption(f"Excerpt: {snippet}")
 
