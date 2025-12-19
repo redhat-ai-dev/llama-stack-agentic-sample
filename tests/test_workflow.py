@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -30,7 +30,7 @@ class TestCreateAgent:
     def test_create_agent_with_basic_params(self):
         mock_rag_service = Mock()
         mock_openai_client = Mock()
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
         workflow = Workflow(rag_service=mock_rag_service)
 
         agent_graph = workflow.create_agent(
@@ -50,7 +50,7 @@ class TestCreateAgent:
             "vector_store_ids": ["test-vs-id"],
         }
         mock_openai_client = Mock()
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -68,7 +68,7 @@ class TestCreateAgent:
     def test_create_agent_without_submission_states(self):
         mock_rag_service = Mock()
         mock_openai_client = Mock()
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
         workflow = Workflow(rag_service=mock_rag_service)
 
         with pytest.raises(ValueError, match="submission_states is required"):
@@ -83,7 +83,7 @@ class TestCreateAgent:
     def test_create_agent_terminal_vs_non_terminal(self):
         mock_rag_service = Mock()
         mock_openai_client = Mock()
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
         workflow = Workflow(rag_service=mock_rag_service)
 
         terminal_agent = workflow.create_agent(
@@ -114,10 +114,10 @@ class TestCallOpenAILlm:
     def test_call_openai_llm_success(self, sample_workflow_state):
         mock_rag_service = Mock()
         mock_openai_client = Mock()
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test response"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
         workflow = Workflow(rag_service=mock_rag_service)
 
         sample_workflow_state["messages"] = [
@@ -132,10 +132,10 @@ class TestCallOpenAILlm:
     def test_call_openai_llm_with_empty_messages(self, sample_workflow_state):
         mock_rag_service = Mock()
         mock_openai_client = Mock()
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Empty response"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
         workflow = Workflow(rag_service=mock_rag_service)
 
         sample_workflow_state["messages"] = []
@@ -155,7 +155,7 @@ class TestMakeWorkflow:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
         mock_rag_service.openai_client = mock_openai_client
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -172,7 +172,7 @@ class TestMakeWorkflow:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
         mock_rag_service.openai_client = mock_openai_client
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -189,7 +189,7 @@ class TestMakeWorkflow:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
         mock_rag_service.openai_client = mock_openai_client
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -207,7 +207,6 @@ class TestMakeWorkflow:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
         mock_rag_service.openai_client = mock_openai_client
-        mock_rag_service.client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -232,10 +231,10 @@ class TestLlmNode:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
 
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test response"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -261,10 +260,10 @@ class TestLlmNode:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
 
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test response"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -305,7 +304,17 @@ class TestLlmNode:
         mock_response.output = [mock_output_item]
 
         mock_openai_client.responses.create.return_value = mock_response
+
+        # RAG uses .client for responses.create
         mock_rag_service.client = mock_openai_client
+
+        # Add fallback mock for chat completions in case RAG fails
+        mock_completion = MagicMock()
+        mock_completion.choices = [Mock(message=Mock(content="Fallback response"))]
+        mock_openai_client.chat.completions.create.return_value = mock_completion
+
+        # Fallback uses .openai_client for chat completions
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -337,10 +346,10 @@ class TestInitMessage:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
 
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -360,10 +369,10 @@ class TestInitMessage:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
 
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -383,10 +392,10 @@ class TestInitMessage:
         mock_rag_service = Mock()
         mock_openai_client = Mock()
 
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         workflow = Workflow(rag_service=mock_rag_service)
 
@@ -416,7 +425,7 @@ class TestWorkflowIntegration:
         workflow = Workflow(rag_service=mock_rag_service)
         mock_openai_client = Mock()
 
-        mock_completion = Mock()
+        mock_completion = MagicMock()
         mock_completion.choices = [Mock(message=Mock(content="Test response"))]
         mock_openai_client.chat.completions.create.return_value = mock_completion
 
@@ -441,7 +450,7 @@ class TestWorkflowIntegration:
         mock_openai_client.moderations.create.return_value = mock_moderation_response
 
         mock_rag_service.openai_client = mock_openai_client
-        mock_rag_service.client = mock_openai_client
+        mock_rag_service.openai_client = mock_openai_client
 
         compiled_workflow = workflow.make_workflow(
             tools_llm="test-model",
