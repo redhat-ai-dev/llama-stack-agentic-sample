@@ -12,7 +12,6 @@ from src.constants import (
     DEFAULT_NON_TERMINAL_AGENT_INITIAL_CONTENT,
     DEFAULT_TERMINAL_AGENT_INITIAL_CONTENT,
     NO_DOCS_INDICATORS,
-    RAG_PROMPT_TEMPLATE,
 )
 from src.methods import (
     classification_agent,
@@ -22,7 +21,7 @@ from src.methods import (
     support_classification_agent,
 )
 from src.responses import RAGService
-from src.types import WorkflowState
+from src.types import WorkflowAgentPrompts, WorkflowState
 from src.utils import (
     extract_rag_response_text,
     logger,
@@ -39,7 +38,7 @@ class Workflow:
     def __init__(
         self,
         rag_service: "RAGService | None" = None,
-        rag_prompt: "str" = RAG_PROMPT_TEMPLATE,
+        rag_prompt: "str" = WorkflowAgentPrompts.RAG_PROMPT,
     ):
         self.rag_prompt = rag_prompt
         self.rag_service = rag_service

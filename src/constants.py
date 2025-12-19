@@ -42,16 +42,6 @@ DEFAULT_MCP_TOOL_MODEL = "vllm/qwen3-8b-fp8"
 # configuration file.
 DEFAULT_INGESTION_CONFIG = "config/ingestion-config.yaml"
 
-# RAG_PROMPT_TEMPLATE: The prompt template used for
-# retrieval-augmented generation (RAG) responses.
-RAG_PROMPT_TEMPLATE = """Based on the relevant documents in the knowledge base,
-please help with the following {department_display_name} query:
-
-{user_input}
-
-Please provide a helpful response based on the documents found. If no relevant
-documents are found, provide general guidance."""
-
 # DEFAULT_INGESTION_CONFIG_PATHS: The default paths to look for
 # the ingestion configuration file.
 DEFAULT_INGESTION_CONFIG_PATHS = [

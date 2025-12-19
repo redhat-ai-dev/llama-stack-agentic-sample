@@ -113,6 +113,13 @@ class WorkflowAgentPrompts:
     set, then call the 'pods_top' tool without any
     parameters.
     """
+    RAG_PROMPT = """Based on the relevant documents in the knowledge base,
+    please help with the following {department_display_name} query:
+
+    {user_input}
+
+    Please provide a helpful response based on the documents found. If no relevant
+    documents are found, provide general guidance."""
 
 
 class WorkflowState(TypedDict):
