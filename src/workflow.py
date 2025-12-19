@@ -161,7 +161,7 @@ class Workflow:
             )
 
             file_search_tool = None
-            if use_rag and self.rag_service is not None:
+            if use_rag:
                 file_search_tool = self.rag_service.get_file_search_tool(rag_category)
                 if file_search_tool:
                     logger.info(
