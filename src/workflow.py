@@ -67,7 +67,9 @@ class Workflow:
         return messages
 
     def _call_openai_llm(self, state: "WorkflowState") -> "str":
-        """Call OpenAI chat completions API"""
+        """
+        calls OpenAI chat completions API as a fallback
+        """
         if not self.rag_service or not self.rag_service.client:
             raise ValueError("OpenAI client not initialized")
 
