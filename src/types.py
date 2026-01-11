@@ -97,9 +97,9 @@ class WorkflowAgentPrompts:
     tool call.
     """
     GIT_COMMENT_PROMPT = """
-    Using the supplied github MCP tool, call the
+    Using the supplied GitHub MCP tool, call the
     'add_issue_comment' tool to add a comment to the supplied issue {issue_id}
-    against thi {github_url} repository. 
+    against this {github_url} repository. 
     
     The 'body' of the tool call, i.e. the actual comment,
     use the {comment_body} string.
