@@ -1,0 +1,31 @@
+# Application Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{ values.name }}-app-config
+  labels:
+    app.kubernetes.io/instance: ${{ values.name }}
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-app-config
+data:
+  # Inference model configuration
+  INFERENCE_MODEL: "${{ values.inferenceModel }}"
+  
+  # Guardrail model for content safety
+  GUARDRAIL_MODEL: "${{ values.safetyModel }}"
+  
+  # Model for MCP tool calls
+  MCP_TOOL_MODEL: "${{ values.mcpToolModel }}"
+  
+  # GitHub repository URL for issue creation
+  GITHUB_URL: "${{ values.githubRepoUrl }}"
+  
+  # Ingestion configuration path (mounted from ConfigMap)
+  INGESTION_CONFIG: "/app/config/ingestion-config.yaml"
+  
+  # RAG file metadata path
+  RAG_FILE_METADATA: "/app/config/rag_file_metadata.json"
+  
+  # Maximum concurrent workflow threads
+  EXECUTOR_WORKERS: "10"
+

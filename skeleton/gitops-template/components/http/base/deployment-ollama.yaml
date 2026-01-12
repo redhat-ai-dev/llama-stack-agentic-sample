@@ -1,0 +1,116 @@
+# Ollama Server Deployment (for inference and/or safety shields)
+# Note: After deployment, models need to be pulled. You can do this by running:
+#   kubectl exec -it deployment/${{ values.name }}-ollama -- ollama pull llama-guard3:8b
+#   kubectl exec -it deployment/${{ values.name }}-ollama -- ollama pull <your-inference-model>
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${{ values.name }}-ollama
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-ollama
+    app.kubernetes.io/part-of: ${{ values.name }}
+    app.kubernetes.io/component: ollama
+  name: ${{ values.name }}-ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ${{ values.name }}-ollama
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: ${{ values.name }}-ollama
+        app.kubernetes.io/component: ollama
+    spec:
+      initContainers:
+        # Pull the safety/guardrail model on startup
+        - name: pull-safety-model
+          image: docker.io/ollama/ollama:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Start Ollama server in background
+              ollama serve &
+              # Wait for server to be ready
+              sleep 10
+              # Pull the safety model (extract model name from ollama/model:tag format)
+              SAFETY_MODEL_NAME="${SAFETY_MODEL#ollama/}"
+              echo "Pulling safety model: $SAFETY_MODEL_NAME"
+              ollama pull "$SAFETY_MODEL_NAME" || echo "Warning: Failed to pull $SAFETY_MODEL_NAME"
+          env:
+            - name: HOME
+              value: /home/ollama
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+            - name: OLLAMA_MODELS
+              value: /home/ollama/.ollama/models
+            - name: SAFETY_MODEL
+              value: ${{ values.safetyModel }}
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /home/ollama/.ollama
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "1000m"
+            limits:
+              memory: "16Gi"
+              cpu: "4000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: ollama
+          image: docker.io/ollama/ollama:latest
+          env:
+            - name: HOME
+              value: /home/ollama
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+            - name: OLLAMA_MODELS
+              value: /home/ollama/.ollama/models
+          ports:
+            - containerPort: 11434
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "1000m"
+            limits:
+              memory: "16Gi"
+              cpu: "4000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /home/ollama/.ollama
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ${{ values.name }}-ollama-data

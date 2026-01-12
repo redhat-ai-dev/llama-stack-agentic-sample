@@ -12,7 +12,7 @@ apis:
 
 providers:
   inference:
-  - provider_id: ${env.OLLAMA_URL:=ollama}
+  - provider_id: ollama
     provider_type: remote::ollama
     config:
       url: ${env.OLLAMA_URL:=http://localhost:11434}

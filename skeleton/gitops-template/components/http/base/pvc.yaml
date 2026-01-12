@@ -1,0 +1,17 @@
+# Persistent Volume Claim for Llama Stack Data
+# Stores vector databases, SQLite databases, and file storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${{ values.name }}
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-llama-data
+  name: ${{ values.name }}-llama-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+

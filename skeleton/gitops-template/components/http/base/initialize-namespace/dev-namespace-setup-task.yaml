@@ -1,0 +1,163 @@
+# Self-contained namespace setup Task
+# This Task creates all required secrets for the AI Software Template to function
+# No external dependency required - the script is embedded directly
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: dev-namespace-setup
+  labels:
+    app.kubernetes.io/part-of: ${{ values.name }}
+spec:
+  description: |-
+    Create the required resources for AI Software Template tasks to run in a namespace.
+    This includes secrets for Git authentication, image registry, webhooks, and signing.
+  params:
+    - name: git_token
+      type: string
+      default: ''
+      description: |
+        Git token for gitops-auth-secret (GitHub/GitLab PAT)
+    - name: gitlab_token
+      type: string
+      default: ''
+      description: |
+        GitLab Personal Access Token for gitlab-auth-secret
+    - name: pipelines_webhook_secret
+      type: string
+      default: ''
+      description: |
+        Pipelines as Code webhook secret for pipelines-secret
+    - name: quay_dockerconfigjson
+      type: string
+      default: ''
+      description: |
+        Image registry token (base64 encoded dockerconfigjson) for rhdh-image-registry-token
+    - name: cosign_public_key
+      type: string
+      default: ''
+      description: |
+        Cosign signing public key (base64 encoded) for cosign-pub secret
+  steps:
+    - name: setup-namespace
+      image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.18"
+      env:
+        - name: GIT_TOKEN
+          value: $(params.git_token)
+        - name: GITLAB_TOKEN
+          value: $(params.gitlab_token)
+        - name: PIPELINES_WEBHOOK_SECRET
+          value: $(params.pipelines_webhook_secret)
+        - name: QUAY_DOCKERCONFIGJSON
+          value: $(params.quay_dockerconfigjson)
+        - name: COSIGN_SIGNING_PUBLIC_KEY
+          value: $(params.cosign_public_key)
+      script: |
+        #!/usr/bin/env bash
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        echo "=== Initializing namespace with required secrets ==="
+
+        # Create cosign-pub secret for image signing verification
+        SECRET_NAME="cosign-pub"
+        if [ -n "$COSIGN_SIGNING_PUBLIC_KEY" ]; then
+          echo -n "* Creating $SECRET_NAME secret: "
+          cat <<EOF | kubectl apply -f - >/dev/null
+        apiVersion: v1
+        data:
+          cosign.pub: $COSIGN_SIGNING_PUBLIC_KEY
+        kind: Secret
+        metadata:
+          labels:
+            app.kubernetes.io/instance: default
+            app.kubernetes.io/part-of: tekton-chains
+            operator.tekton.dev/operand-name: tektoncd-chains
+          name: $SECRET_NAME
+        type: Opaque
+        EOF
+          echo "OK"
+        else
+          echo "* Skipping $SECRET_NAME secret (no value provided)"
+        fi
+
+        # Create gitlab-auth-secret for GitLab authentication
+        SECRET_NAME="gitlab-auth-secret"
+        if [ -n "$GITLAB_TOKEN" ]; then
+          echo -n "* Creating $SECRET_NAME secret: "
+          kubectl create secret generic "$SECRET_NAME" \
+            --from-literal=password=$GITLAB_TOKEN \
+            --from-literal=username=oauth2 \
+            --type=kubernetes.io/basic-auth \
+            --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+          echo "OK"
+        else
+          echo "* Skipping $SECRET_NAME secret (no value provided)"
+        fi
+
+        # Create gitops-auth-secret for Git operations
+        SECRET_NAME="gitops-auth-secret"
+        if [ -n "$GIT_TOKEN" ]; then
+          echo -n "* Creating $SECRET_NAME secret: "
+          kubectl create secret generic "$SECRET_NAME" \
+            --from-literal=password=$GIT_TOKEN \
+            --type=kubernetes.io/basic-auth \
+            --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+          echo "OK"
+        else
+          echo "* Skipping $SECRET_NAME secret (no value provided)"
+        fi
+
+        # Create pipelines-secret for Pipelines as Code webhook
+        SECRET_NAME="pipelines-secret"
+        if [ -n "$PIPELINES_WEBHOOK_SECRET" ]; then
+          echo -n "* Creating $SECRET_NAME secret: "
+          kubectl create secret generic "$SECRET_NAME" \
+            --from-literal=webhook.secret=$PIPELINES_WEBHOOK_SECRET \
+            --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+          echo "OK"
+        else
+          echo "* Skipping $SECRET_NAME secret (no value provided)"
+        fi
+
+        # Create rhdh-image-registry-token for image registry authentication
+        SECRET_NAME="rhdh-image-registry-token"
+        if [ -n "$QUAY_DOCKERCONFIGJSON" ]; then
+          echo -n "* Creating $SECRET_NAME secret: "
+          DATA=$(mktemp)
+          echo -n "$QUAY_DOCKERCONFIGJSON" >"$DATA"
+          kubectl create secret docker-registry "$SECRET_NAME" \
+            --from-file=.dockerconfigjson="$DATA" --dry-run=client -o yaml | \
+            kubectl apply --filename - --overwrite=true >/dev/null
+          rm "$DATA"
+          echo -n "."
+          
+          # Wait for pipeline service account to exist
+          echo -n " Waiting for service accounts"
+          for i in {1..30}; do
+            if kubectl get serviceaccount pipeline >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+            echo -n "."
+          done
+          
+          # Patch service accounts with image pull secret
+          for SA in default pipeline; do
+            if kubectl get serviceaccount "$SA" >/dev/null 2>&1; then
+              kubectl patch serviceaccounts "$SA" --patch "
+        secrets:
+          - name: $SECRET_NAME
+        imagePullSecrets:
+          - name: $SECRET_NAME
+        " >/dev/null 2>&1 || true
+              echo -n "."
+            fi
+          done
+          echo "OK"
+        else
+          echo "* Skipping $SECRET_NAME secret (no value provided)"
+        fi
+
+        echo "=== Namespace initialization complete ==="
+

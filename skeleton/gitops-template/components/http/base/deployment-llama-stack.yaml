@@ -1,0 +1,92 @@
+# Llama Stack Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${{ values.name }}-llama-stack
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-llama-stack
+    app.kubernetes.io/part-of: ${{ values.name }}
+    app.kubernetes.io/component: llama-stack
+  name: ${{ values.name }}-llama-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ${{ values.name }}-llama-stack
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: ${{ values.name }}-llama-stack
+        app.kubernetes.io/component: llama-stack
+    spec:
+      containers:
+        - name: llama-stack
+          # Default bootstrap image for Llama Stack server
+          image: quay.io/redhat-ai-dev/agentic-llama-stack:latest
+          command: ["uv", "run", "llama", "stack", "run", "/config/run.yaml"]
+          envFrom:
+            # Non-sensitive config from template (URLs, model names)
+            - configMapRef:
+                name: ${{ values.name }}-llama-stack-env
+            # Sensitive config from user-created secret (API keys)
+            - secretRef:
+                name: ${{ values.llamaStackSecretName }}
+                optional: false
+          env:
+            # Override paths for container environment
+            - name: MILVUS_DB_PATH
+              value: "/data/milvus.db"
+            - name: KV_SQL_STORE_DIR
+              value: "/data"
+            - name: SQLITE_STORE_DIR
+              value: "/data"
+            - name: FILES_STORAGE_DIR
+              value: "/data/files"
+            # MCP Server URL for tool runtime
+            - name: MCP_SERVER_URL
+              value: "http://${{ values.name }}-mcp-server:8080"
+          ports:
+            - containerPort: 8321
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8321
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8321
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: run-config
+              mountPath: /config
+            - name: llama-data
+              mountPath: /data
+      volumes:
+        - name: run-config
+          configMap:
+            name: ${{ values.name }}-llama-stack-config
+        - name: llama-data
+          persistentVolumeClaim:
+            claimName: ${{ values.name }}-llama-data
+

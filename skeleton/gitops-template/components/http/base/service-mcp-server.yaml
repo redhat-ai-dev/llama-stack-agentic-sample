@@ -1,0 +1,18 @@
+# Service for Kubernetes MCP Server
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${{ values.name }}-mcp-server
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-mcp-server
+  name: ${{ values.name }}-mcp-server
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 8080
+      name: http
+  selector:
+    app.kubernetes.io/instance: ${{ values.name }}-mcp-server
+

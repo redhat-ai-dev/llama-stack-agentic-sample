@@ -1,0 +1,76 @@
+# Kubernetes MCP Server Deployment
+# This deployment runs the Kubernetes MCP Server which provides
+# tools for Kubernetes cluster interactions (list namespaces, get events, etc.)
+# Uses the same container image as the app (with Node.js and kubernetes-mcp-server installed)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${{ values.name }}-mcp-server
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-mcp-server
+    app.kubernetes.io/part-of: ${{ values.name }}
+    app.kubernetes.io/component: mcp-server
+  name: ${{ values.name }}-mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ${{ values.name }}-mcp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: ${{ values.name }}-mcp-server
+        app.kubernetes.io/component: mcp-server
+    spec:
+      serviceAccountName: ${{ values.name }}-mcp-sa
+      containers:
+        - name: mcp-server
+          # Node.js image with npx for running kubernetes-mcp-server
+          image: node:20-alpine
+          command:
+            - npx
+            - -y
+            - kubernetes-mcp-server@latest
+          args:
+            - --port
+            - "8080"
+            - --read-only
+            - --log-level
+            - "5"
+          env:
+            # Use in-cluster config (service account token)
+            - name: KUBERNETES_SERVICE_HOST
+              value: "kubernetes.default.svc"
+            - name: KUBERNETES_SERVICE_PORT
+              value: "443"
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
