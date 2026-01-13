@@ -1,43 +1,82 @@
 # Llama Stack Agentic Application Container
-# This Containerfile builds a multi-service container for the agentic AI workflow
+# Multi-stage build for smaller, more secure image
 
-FROM registry.access.redhat.com/ubi9/python-312:latest
+# =============================================================================
+# BUILDER STAGE
+# =============================================================================
+FROM registry.access.redhat.com/ubi9/python-312:9.7@sha256:92c71d1e64cf84b9aa6e8e81555397175b9367298b456d24eac5b55ab41fdab9 AS builder
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    UV_SYSTEM_PYTHON=1 \
-    UV_COMPILE_BYTECODE=1
-
-# Install system dependencies and uv
 USER root
-RUN pip install --no-cache-dir uv
 
-# Create application directory
-WORKDIR /app
+# Allow uv to download Python 3.13 (required by pyproject.toml)
+ENV UV_COMPILE_BYTECODE=0 \
+    UV_LINK_MODE=copy
 
-# Copy dependency files first for better caching
-COPY pyproject.toml uv.lock ./
+WORKDIR /app-root
 
-# Install Python dependencies using uv
+# Install build dependencies
+RUN dnf install -y gcc python3-devel make && \
+    dnf clean all && \
+    pip3.12 install uv
+
+# Copy dependency specification
+COPY ./pyproject.toml ./uv.lock ./
+
+# Install Python dependencies (uv will download Python 3.13 automatically)
 RUN uv sync --frozen --no-dev
 
+# =============================================================================
+# RUNTIME STAGE
+# =============================================================================
+FROM registry.access.redhat.com/ubi9/python-312-minimal:9.7@sha256:2ac60c655288a88ec55df5e2154b9654629491e3c58b5c54450fb3d27a575cb6
+
+ARG APP_ROOT=/app-root
+WORKDIR /app-root
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONCOERCECLOCALE=0 \
+    PYTHONUTF8=1 \
+    PYTHONIOENCODING=UTF-8 \
+    LANG=en_US.UTF-8 \
+    PATH="/app-root/.venv/bin:$PATH"
+
+# Copy virtual environment from builder
+COPY --from=builder --chown=1001:1001 /app-root/.venv ./.venv
+
 # Copy application source code
-COPY src/ ./src/
-COPY streamlit_app.py ./
-COPY config/ ./config/
-COPY rag_file_metadata.json ./
+COPY --chown=1001:1001 ./src/ ./src/
+COPY --chown=1001:1001 ./streamlit_app.py ./
 
-# Create directories for Llama Stack data persistence
-RUN mkdir -p /app/.llama /app/files && \
-    chgrp -R 0 /app && \
-    chmod -R g=u /app
+# Copy configuration (baked in - single source of truth)
+COPY --chown=1001:1001 ./config/ ./config/
 
-# Expose port for Streamlit UI
+# Create empty rag_file_metadata.json (generated at runtime during ingestion)
+RUN echo '{}' > /app-root/rag_file_metadata.json
+
+# Create directories for runtime data
+USER root
+RUN mkdir -p /app-root/.llama && \
+    chgrp -R 0 /app-root && \
+    chmod -R g=u /app-root
+
+# License
+RUN mkdir -p /licenses
+COPY LICENSE /licenses/
+
+# Expose Streamlit port
 EXPOSE 8501
 
-# Default entrypoint runs the Streamlit app
-# Override with appropriate command for Llama Stack or MCP server deployments
 USER 1001
-ENTRYPOINT ["uv", "run", "streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0"]
 
+# Default entrypoint runs the Streamlit app
+CMD ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0"]
+
+# Labels
+LABEL com.redhat.component=llama-stack-agentic-app \
+      description="Llama Stack Agentic AI Workflow Application" \
+      io.k8s.description="Llama Stack Agentic AI Workflow Application" \
+      io.k8s.display-name="Llama Stack Agentic App" \
+      io.openshift.tags="ai,llama-stack,streamlit,agents,rag" \
+      name=llama-stack-agentic-app \
+      summary="Streamlit application for agentic AI workflows"

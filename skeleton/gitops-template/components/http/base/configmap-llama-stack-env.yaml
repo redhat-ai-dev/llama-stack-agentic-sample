@@ -14,15 +14,8 @@ data:
   # vLLM Server URL
   DEV_CLUSTER_QWEN_URL: "${{ values.vllmUrl }}"
   
-  # OpenAI API Base URL
-  OPENAI_BASE_URL: "${{ values.openaiBaseUrl }}"
-  
-  # Ollama Server URL (empty means use default from run.yaml)
-  {%- if values.ollamaUrl %}
-  OLLAMA_URL: "${{ values.ollamaUrl }}"
-  {%- else %}
+  # Ollama Server URL (points to deployed Ollama service)
   OLLAMA_URL: "http://${{ values.name }}-ollama:11434"
-  {%- endif %}
   
   # Safety Model for guardrails
   SAFETY_MODEL: "${{ values.safetyModel }}"

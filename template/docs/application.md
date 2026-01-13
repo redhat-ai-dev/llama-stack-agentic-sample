@@ -111,7 +111,7 @@ The application uses the following environment variables:
 | `GUARDRAIL_MODEL` | Model for content safety | `ollama/llama-guard3:8b` |
 | `MCP_TOOL_MODEL` | Model for MCP tool calls | `vllm/qwen3-8b-fp8` |
 | `OPENAI_API_KEY` | OpenAI API key for embeddings | Required |
-| `GIT_TOKEN` | GitHub personal access token | Optional |
+| `GITHUB_TOKEN` | GitHub personal access token | Optional |
 | `GITHUB_URL` | Repository URL for issue creation | Optional |
 | `GITHUB_ID` | GitHub username for issue assignment | Optional |
 

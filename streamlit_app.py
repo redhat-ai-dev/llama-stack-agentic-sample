@@ -41,8 +41,8 @@ GUARDRAIL_MODEL = os.getenv("GUARDRAIL_MODEL", DEFAULT_GUARDRAIL_MODEL)
 # MCP_TOOL_MODEL: Model to use for MCP tool calls
 MCP_TOOL_MODEL = os.getenv("MCP_TOOL_MODEL", DEFAULT_MCP_TOOL_MODEL)
 
-# GIT_TOKEN: Git token for accessing private repositories
-GIT_TOKEN = os.getenv("GIT_TOKEN", "not applicable")
+# GITHUB_TOKEN: GitHub Personal Access Token for issue creation and comments
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "not applicable")
 
 # GITHUB_URL: URL of the GitHub repository
 GITHUB_URL = os.getenv("GITHUB_URL", "not applicable")
@@ -131,7 +131,7 @@ def initialize_workflow(_pipelines: "list[Pipeline]") -> "tuple[Any, RAGService]
     workflow_builder = Workflow(rag_service=rag_service)
     compiled_workflow = workflow_builder.make_workflow(
         tools_llm=INFERENCE_MODEL,
-        git_token=GIT_TOKEN,
+        git_token=GITHUB_TOKEN,
         github_url=GITHUB_URL,
         guardrail_model=GUARDRAIL_MODEL,
     )

@@ -56,8 +56,10 @@ class IngestionService:
 
         self.config_path = config_path
 
-        # Llama Stack setup
-        self.llama_stack_url: "str" = _config["llamastack"]["base_url"]
+        # Llama Stack setup - prefer env var over config file
+        self.llama_stack_url: "str" = os.environ.get(
+            "LLAMA_STACK_URL", _config["llamastack"]["base_url"]
+        )
         self.client = self._initialize_llama_stack_client()
         self.vector_store_ids: "list[str]" = []
 

@@ -28,7 +28,7 @@ spec:
       containers:
         - name: streamlit-app
           # Default bootstrap image - will be updated by Tekton pipeline via deployment-patch
-          image: quay.io/redhat-ai-dev/agentic-sample:latest
+          image: ${{ values.appContainer }}
           envFrom:
             - configMapRef:
                 name: ${{ values.name }}-app-config
@@ -40,6 +40,8 @@ spec:
               value: "http://${{ values.name }}-llama-stack:8321"
             - name: LLAMA_STACK_SERVER_OPENAI
               value: "http://${{ values.name }}-llama-stack:8321/v1/openai/v1"
+            - name: MCP_SERVER_URL
+              value: "http://${{ values.name }}-mcp-server:8080/mcp"
           ports:
             - containerPort: 8501
               name: http
@@ -72,14 +74,9 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 30
           volumeMounts:
-            - name: config-volume
-              mountPath: /app/config
             - name: llama-data
-              mountPath: /app/.llama
+              mountPath: /app-root/.llama
       volumes:
-        - name: config-volume
-          configMap:
-            name: ${{ values.name }}-ingestion-config
         - name: llama-data
           emptyDir: {}
 

@@ -54,7 +54,7 @@ oc new-project <your-namespace>
 # Create secrets
 oc create secret generic <app-name>-secrets \
   --from-literal=OPENAI_API_KEY="sk-..." \
-  --from-literal=GIT_TOKEN="ghp_..." \
+  --from-literal=GITHUB_TOKEN="ghp_..." \
   --from-literal=GITHUB_URL="https://github.com/org/repo" \
   --from-literal=GITHUB_ID="username"
 ```

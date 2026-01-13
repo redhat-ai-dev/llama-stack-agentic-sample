@@ -1,4 +1,5 @@
 # Llama Stack Server Deployment
+# run.yaml is baked into the image - env vars override config at runtime
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,9 +23,8 @@ spec:
     spec:
       containers:
         - name: llama-stack
-          # Default bootstrap image for Llama Stack server
-          image: quay.io/redhat-ai-dev/agentic-llama-stack:latest
-          command: ["uv", "run", "llama", "stack", "run", "/config/run.yaml"]
+          # Image with run.yaml baked in
+          image: ${{ values.llamaStackContainer }}
           envFrom:
             # Non-sensitive config from template (URLs, model names)
             - configMapRef:
@@ -78,14 +78,9 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           volumeMounts:
-            - name: run-config
-              mountPath: /config
             - name: llama-data
               mountPath: /data
       volumes:
-        - name: run-config
-          configMap:
-            name: ${{ values.name }}-llama-stack-config
         - name: llama-data
           persistentVolumeClaim:
             claimName: ${{ values.name }}-llama-data

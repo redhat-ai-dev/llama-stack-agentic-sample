@@ -57,7 +57,7 @@ stringData:
   OPENAI_API_KEY: "sk-..."
   
   # Optional: GitHub integration
-  GIT_TOKEN: "ghp_..."
+  GITHUB_TOKEN: "ghp_..."
   GITHUB_URL: "https://github.com/your-org/your-repo"
   GITHUB_ID: "your-github-username"
   

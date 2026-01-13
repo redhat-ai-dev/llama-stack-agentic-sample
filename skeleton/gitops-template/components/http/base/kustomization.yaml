@@ -14,11 +14,9 @@ resources:
   - pvc.yaml
   # RBAC for MCP Server
   - rbac-mcp-server.yaml
-  # ConfigMaps
+  # ConfigMaps (run.yaml and ingestion-config.yaml are baked into images)
   - configmap-app.yaml
-  - configmap-llama-stack.yaml
   - configmap-llama-stack-env.yaml
-  - configmap-ingestion.yaml
   # NOTE: Secrets are user-managed - see TechDocs for example
   # Llama Stack Server
   - deployment-llama-stack.yaml

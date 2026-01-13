@@ -96,7 +96,7 @@ point to a kubeconfig file for a user who has sufficient permissions to view `Ev
 ### Access the public GitHub MCP Server
 
 You'll need to create a [GitHub personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) that
-allows you to create issues. The application expects that token to be set to the `GIT_TOKEN` environment variable.
+allows you to create issues. The application expects that token to be set to the `GITHUB_TOKEN` environment variable.
 
 You will also need to provide a GitHub Organization and Repository in the form of a https URL (i.e. `https://github.com/<your org>/<your repo>`) and
 set that to the `GITHUB_URL` environment variable.

@@ -1,0 +1,30 @@
+# Llama Stack Server Dependencies
+# This is a minimal pyproject.toml for the Llama Stack server container
+# Used by Containerfile.llama-stack
+
+[project]
+name = "llama-stack-server"
+version = "0.1.0"
+description = "Llama Stack Agentic AI Server"
+requires-python = ">=3.12"
+dependencies = [
+    # Core Llama Stack
+    "llama-stack>=0.3.1",
+    "llama-stack-client>=0.3.1",
+    
+    # MCP (Model Context Protocol) for tool runtime
+    "mcp>=1.23.1",
+    
+    # Vector database
+    "pymilvus[milvus_lite]>=2.6.5",
+    
+    # Database for persistence
+    "aiosqlite>=0.20.0",
+    
+    # HTTP client and OpenAI provider
+    "httpx>=0.28.0",
+    "openai>=1.82.0",
+    
+    # YAML config parsing
+    "pyyaml>=6.0.3",
+]

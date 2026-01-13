@@ -28,38 +28,33 @@ spec:
         - name: initialize-namespace
           image: quay.io/redhat-ai-dev/utils:latest
           env:
-            # These environment variables can be set via a ConfigMap or Secret
-            # mounted to this Job, or pre-configured in the cluster
+            # These environment variables are read from the pipeline-secrets Secret
+            # configured in the template. Keys match env var names for consistency.
             - name: GIT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: rhdh-secrets
-                  key: git-token
+                  name: ${{ values.pipelineSecretName }}
+                  key: GIT_TOKEN
                   optional: true
             - name: GITLAB_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: rhdh-secrets
-                  key: gitlab-token
+                  name: ${{ values.pipelineSecretName }}
+                  key: GITLAB_TOKEN
                   optional: true
-            - name: PIPELINES_WEBHOOK_SECRET
+            - name: WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: rhdh-secrets
-                  key: webhook-secret
+                  name: ${{ values.pipelineSecretName }}
+                  key: WEBHOOK_SECRET
                   optional: true
             - name: QUAY_DOCKERCONFIGJSON
               valueFrom:
                 secretKeyRef:
-                  name: rhdh-secrets
-                  key: quay-dockerconfigjson
+                  name: ${{ values.pipelineSecretName }}
+                  key: QUAY_DOCKERCONFIGJSON
                   optional: true
-            - name: COSIGN_PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: rhdh-secrets
-                  key: cosign-public-key
-                  optional: true
+            # COSIGN_PUBLIC_KEY is auto-fetched from openshift-pipelines namespace
           command:
             - /bin/bash
             - -c
@@ -80,18 +75,16 @@ spec:
                   tasks:
                     - name: configure-namespace
                       taskRef:
-                        name: dev-namespace-setup
+                        name: ${{ values.name }}-dev-namespace-setup
                       params:
                         - name: git_token
                           value: "${GIT_TOKEN:-}"
                         - name: gitlab_token
                           value: "${GITLAB_TOKEN:-}"
-                        - name: pipelines_webhook_secret
-                          value: "${PIPELINES_WEBHOOK_SECRET:-}"
+                        - name: webhook_secret
+                          value: "${WEBHOOK_SECRET:-}"
                         - name: quay_dockerconfigjson
                           value: "${QUAY_DOCKERCONFIGJSON:-}"
-                        - name: cosign_public_key
-                          value: "${COSIGN_PUBLIC_KEY:-}"
               PIPELINE_RUN
               
               echo "=== PipelineRun created successfully ==="

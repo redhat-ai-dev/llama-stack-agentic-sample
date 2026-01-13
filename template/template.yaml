@@ -96,29 +96,15 @@ spec:
         - llamaStackSecretName
       ui:order:
         - vllmUrl
-        - openaiBaseUrl
-        - ollamaUrl
         - safetyModel
         - llamaStackSecretName
         - '*'
       properties:
         vllmUrl:
-          title: vLLM Server URL (DEV_CLUSTER_QWEN_URL)
+          title: vLLM Server URL
           type: string
           description: URL of the vLLM inference server endpoint
           ui:help: "Example: https://your-vllm-server.apps.cluster.example.com/v1"
-        openaiBaseUrl:
-          title: OpenAI Base URL (OPENAI_BASE_URL)
-          type: string
-          default: https://api.openai.com/v1
-          description: OpenAI API base URL (or compatible endpoint). Leave default for standard OpenAI.
-          ui:help: "Optional - Default: https://api.openai.com/v1"
-        ollamaUrl:
-          title: Ollama Server URL (OLLAMA_URL)
-          type: string
-          default: ""
-          description: URL of an external Ollama server. Leave empty to use the auto-deployed Ollama service.
-          ui:help: "Optional - Default: http://{app-name}-ollama:11434 (auto-deployed)"
         safetyModel:
           title: Safety Model (SAFETY_MODEL)
           type: string
@@ -180,14 +166,14 @@ spec:
           default: app-secrets
           description: |
             Name of a Kubernetes Secret you will create containing:
-            • GIT_TOKEN - GitHub Personal Access Token with 'repo' scope for creating issues and comments
+            • GITHUB_TOKEN - GitHub Personal Access Token with 'repo' scope for creating issues and comments
             See TechDocs "Secrets Configuration" for example YAML.
           ui:help: |
             Create a GitHub Personal Access Token at: https://github.com/settings/tokens
             Required scopes: repo (for issue creation and comments)
             See: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
             
-            kubectl create secret generic <secret-name> --from-literal=GIT_TOKEN=<your-github-pat>
+            kubectl create secret generic <secret-name> --from-literal=GITHUB_TOKEN=<your-github-pat>
 
     # ==================== Repository Information ====================
     - title: Application Repository Information
@@ -246,11 +232,13 @@ spec:
         - imageOrg
         - imageName
         - namespace
+        - pipelineSecretName
       ui:order:
         - imageRegistry
         - imageOrg
         - imageName
         - namespace
+        - pipelineSecretName
         - deployArgoCDApplicationOnRemoteCluster
         - remoteClusterAPIUrl
         - remoteClusterDeploymentNamespace
@@ -280,6 +268,21 @@ spec:
           ui:autofocus: true
           ui:options:
             rows: 5
+        pipelineSecretName:
+          title: Pipeline Secrets Name
+          type: string
+          default: pipeline-secrets
+          description: |
+            Name of a Kubernetes Secret containing CI/CD pipeline credentials:
+            • GIT_TOKEN - GitHub/GitLab PAT for GitOps repository operations
+            • GITLAB_TOKEN - GitLab PAT (if using GitLab)
+            • WEBHOOK_SECRET - Pipelines as Code webhook secret
+            • QUAY_DOCKERCONFIGJSON - Image registry credentials
+            Note: Cosign public key is auto-fetched from openshift-pipelines namespace.
+            See TechDocs "Pipeline Secrets Configuration" for example YAML.
+          ui:help: |
+            This secret is used by the initialize-namespace Job to set up Tekton pipelines.
+            If not provided, the Job will skip pipeline setup.
         deployArgoCDApplicationOnRemoteCluster:
           title: Deploy on Remote Cluster?
           type: boolean
@@ -437,8 +440,6 @@ spec:
           appPort: 8501
           # Llama Stack configuration
           vllmUrl: ${{ parameters.vllmUrl }}
-          openaiBaseUrl: ${{ parameters.openaiBaseUrl }}
-          ollamaUrl: ${{ parameters.ollamaUrl }}
           safetyModel: ${{ parameters.safetyModel }}
           llamaStackSecretName: ${{ parameters.llamaStackSecretName }}
           # Application configuration
@@ -449,6 +450,8 @@ spec:
           # Provider flags (vLLM and OpenAI always enabled for this template)
           vllmEnabled: true
           openaiEnabled: true
+          # Pipeline/Deployment configuration
+          pipelineSecretName: ${{ parameters.pipelineSecretName }}
           # Remote cluster configuration
           deployOnRemoteCluster: ${{ parameters.deployArgoCDApplicationOnRemoteCluster }}
           remoteClusterAPIUri: ${{ parameters.remoteClusterAPIUrl }}
