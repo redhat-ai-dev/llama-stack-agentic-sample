@@ -25,6 +25,7 @@ spec:
         - name: llama-stack
           # Image with run.yaml baked in
           image: ${{ values.llamaStackContainer }}
+          imagePullPolicy: Always
           envFrom:
             # Non-sensitive config from template (URLs, model names)
             - configMapRef:
@@ -34,6 +35,23 @@ spec:
                 name: ${{ values.llamaStackSecretName }}
                 optional: false
           env:
+            # Explicitly set provider URLs and keys (also in ConfigMap/Secret via envFrom,
+            # but duplicated here to ensure availability during early initialization)
+            - name: VLLM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{ values.name }}-llama-stack-env
+                  key: VLLM_URL
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ values.llamaStackSecretName }}
+                  key: VLLM_API_KEY
+            - name: OLLAMA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{ values.name }}-llama-stack-env
+                  key: OLLAMA_URL
             # Override paths for container environment
             - name: MILVUS_DB_PATH
               value: "/data/milvus.db"
@@ -82,6 +100,7 @@ spec:
               mountPath: /data
       volumes:
         - name: llama-data
-          persistentVolumeClaim:
-            claimName: ${{ values.name }}-llama-data
+          # Using emptyDir for simplicity - data is ephemeral and lost on pod restart
+          # For production with persistent RAG data, consider using a PVC instead
+          emptyDir: {}
 

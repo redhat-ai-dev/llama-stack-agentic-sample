@@ -117,12 +117,12 @@ spec:
           default: llama-stack-secrets
           description: |
             Name of a Kubernetes Secret you will create containing:
-            • DEV_CLUSTER_QWEN_API_KEY - API key for vLLM server
+            • VLLM_API_KEY - API key for vLLM server
             • OPENAI_API_KEY - Your OpenAI API key (for embeddings)
             See TechDocs "Secrets Configuration" for example YAML.
           ui:help: |
             kubectl create secret generic <secret-name> \
-              --from-literal=DEV_CLUSTER_QWEN_API_KEY=<your-vllm-key> \
+              --from-literal=VLLM_API_KEY=<your-vllm-key> \
               --from-literal=OPENAI_API_KEY=<your-openai-key>
 
     # ==================== Application Configuration ====================
@@ -434,8 +434,8 @@ spec:
           webhookSecret: pipelines-secret
           webhookSecretKey: webhook.secret
           defaultBranch: main
-          # Default bootstrap image - will be updated by Tekton pipeline
-          appContainer: ${{ 'quay.io/redhat-ai-dev/ai-template-bootstrap-app:latest' if parameters.hostType === 'GitHub' else 'quay.io/redhat-ai-dev/agentic-sample:latest' }}
+          # Application container image
+          appContainer: quay.io/redhat-ai-dev/agentic-sample:latest
           llamaStackContainer: quay.io/redhat-ai-dev/agentic-llama-stack:latest
           appPort: 8501
           # Llama Stack configuration

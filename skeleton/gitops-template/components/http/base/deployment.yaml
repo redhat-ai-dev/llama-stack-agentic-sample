@@ -29,6 +29,7 @@ spec:
         - name: streamlit-app
           # Default bootstrap image - will be updated by Tekton pipeline via deployment-patch
           image: ${{ values.appContainer }}
+          imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: ${{ values.name }}-app-config

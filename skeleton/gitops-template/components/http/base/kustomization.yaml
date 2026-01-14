@@ -10,8 +10,6 @@ resources:
   {%- if not values.deployOnRemoteCluster %}
   - initialize-namespace/
   {%- endif %}
-  # Persistent storage for Llama Stack data
-  - pvc.yaml
   # RBAC for MCP Server
   - rbac-mcp-server.yaml
   # ConfigMaps (run.yaml and ingestion-config.yaml are baked into images)

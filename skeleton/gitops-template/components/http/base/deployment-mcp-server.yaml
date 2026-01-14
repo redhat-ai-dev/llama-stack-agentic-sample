@@ -39,6 +39,11 @@ spec:
             - --log-level
             - "5"
           env:
+            # Fix npm cache permissions in OpenShift (runs as arbitrary non-root user)
+            - name: HOME
+              value: "/tmp"
+            - name: npm_config_cache
+              value: "/tmp/.npm"
             # Use in-cluster config (service account token)
             - name: KUBERNETES_SERVICE_HOST
               value: "kubernetes.default.svc"

@@ -12,6 +12,6 @@ spec:
   template:
     spec:
       containers:
-        - image: ${{ values.appContainer }} # use pre-built to bootstrap
-          name: app-inference
+        - name: streamlit-app
+          image: ${{ values.appContainer }}
 
