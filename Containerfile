@@ -54,11 +54,11 @@ COPY --chown=1001:1001 ./config/ ./config/
 # Create empty rag_file_metadata.json (generated at runtime during ingestion)
 RUN echo '{}' > /app-root/rag_file_metadata.json
 
-# Create directories for runtime data
+# Create directories for runtime data (don't chmod -R the whole app-root, it doubles image size!)
 USER root
 RUN mkdir -p /app-root/.llama && \
-    chgrp -R 0 /app-root && \
-    chmod -R g=u /app-root
+    chgrp -R 0 /app-root/.llama && \
+    chmod -R g=u /app-root/.llama
 
 # License
 RUN mkdir -p /licenses

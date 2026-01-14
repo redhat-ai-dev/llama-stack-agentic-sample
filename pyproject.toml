@@ -3,7 +3,7 @@ name = "llama-stack-agentic-sample"
 version = "0.1.0"
 description = "Llama-Stack LangGraph Customer Service Example"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.12"
 dependencies = [
     "docling>=2.63.0",
     "llama-stack-client>=0.3.1",
