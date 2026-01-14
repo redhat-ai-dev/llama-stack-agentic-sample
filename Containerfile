@@ -54,8 +54,12 @@ COPY --chown=1001:1001 ./config/ ./config/
 # Create empty rag_file_metadata.json (generated at runtime during ingestion)
 RUN echo '{}' > /app-root/rag_file_metadata.json
 
-# Create directories for runtime data (don't chmod -R the whole app-root, it doubles image size!)
+# Install runtime dependencies for docling/opencv (libGL for PDF processing)
 USER root
+RUN microdnf install -y mesa-libGL && \
+    microdnf clean all
+
+# Create directories for runtime data (don't chmod -R the whole app-root, it doubles image size!)
 RUN mkdir -p /app-root/.llama && \
     chgrp -R 0 /app-root/.llama && \
     chmod -R g=u /app-root/.llama
