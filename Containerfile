@@ -14,8 +14,8 @@ ENV UV_COMPILE_BYTECODE=0 \
 
 WORKDIR /app-root
 
-# Install build dependencies
-RUN dnf install -y gcc python3-devel make && \
+# Install build dependencies (including mesa-libGL for RapidOCR/OpenCV model pre-download)
+RUN dnf install -y gcc python3-devel make mesa-libGL && \
     dnf clean all && \
     pip3.12 install uv
 
@@ -24,6 +24,10 @@ COPY ./pyproject.toml ./uv.lock ./
 
 # Install Python dependencies (uv will download Python 3.13 automatically)
 RUN uv sync --frozen --no-dev
+
+# Pre-download RapidOCR models during build (required for OpenShift where site-packages is read-only)
+# Use torch engine for all components (Det, Cls, Rec) since onnxruntime is not in dependencies
+RUN .venv/bin/python -c "from rapidocr import RapidOCR, EngineType; RapidOCR(params={'Det.engine_type': EngineType.TORCH, 'Cls.engine_type': EngineType.TORCH, 'Rec.engine_type': EngineType.TORCH})"
 
 # =============================================================================
 # RUNTIME STAGE
