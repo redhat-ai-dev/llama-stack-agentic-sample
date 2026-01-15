@@ -70,10 +70,10 @@ spec:
               protocol: TCP
           resources:
             requests:
-              memory: "1Gi"
+              memory: "2Gi"
               cpu: "500m"
             limits:
-              memory: "4Gi"
+              memory: "8Gi"
               cpu: "2000m"
           securityContext:
             runAsNonRoot: true
@@ -100,7 +100,10 @@ spec:
               mountPath: /data
       volumes:
         - name: llama-data
-          # Using emptyDir for simplicity - data is ephemeral and lost on pod restart
+          # Using memory-backed emptyDir to avoid milvus-lite mmap issues in OpenShift
+          # Data is ephemeral and lost on pod restart
           # For production with persistent RAG data, consider using a PVC instead
-          emptyDir: {}
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
 
