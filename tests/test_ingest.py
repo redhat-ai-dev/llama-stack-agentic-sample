@@ -371,7 +371,8 @@ class TestSaveFileMetadata:
         }
 
         output_path = os.path.join(temp_dir, "metadata.json")
-        service.save_file_metadata(output_path)
+        service.file_metadata_path = output_path
+        service.save_file_metadata()
 
         assert os.path.exists(output_path)
 
@@ -389,7 +390,8 @@ class TestSaveFileMetadata:
         service.file_metadata = {}
 
         output_path = os.path.join(temp_dir, "metadata.json")
-        service.save_file_metadata(output_path)
+        service.file_metadata_path = output_path
+        service.save_file_metadata()
 
         assert not os.path.exists(output_path)
 

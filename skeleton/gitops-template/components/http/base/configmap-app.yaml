@@ -23,8 +23,8 @@ data:
   # Ingestion configuration path (baked into image)
   INGESTION_CONFIG: "/app-root/config/ingestion-config.yaml"
   
-  # RAG file metadata path (baked into image)
-  RAG_FILE_METADATA: "/app-root/rag_file_metadata.json"
+  # RAG file metadata path (writable location for runtime updates)
+  RAG_FILE_METADATA: "/tmp/rag_file_metadata.json"
   
   # Maximum concurrent workflow threads
   EXECUTOR_WORKERS: "10"

@@ -95,6 +95,11 @@ class IngestionService:
             chunk_size_in_tokens=_chunk_size_in_tokens,
         )
         self.file_metadata = {}
+        
+        # File metadata output path - prefer env var for writable location in containers
+        self.file_metadata_path = os.environ.get(
+            "RAG_FILE_METADATA", "rag_file_metadata.json"
+        )
 
         # Document converter setup
         pipeline_options = PdfPipelineOptions()
@@ -719,22 +724,21 @@ class IngestionService:
 
             return await self.create_vector_db(vector_store_name, documents)
 
-    def save_file_metadata(
-        self, output_path: "str" = "rag_file_metadata.json"
-    ) -> "None":
+    def save_file_metadata(self) -> "None":
         """
         saves file metadata mapping to JSON for use by RAG service.
+        Uses self.file_metadata_path (from RAG_FILE_METADATA env var).
         """
         if not self.file_metadata:
             logger.warning("No file metadata to save")
             return
 
         try:
-            with open(output_path, "w") as f:
+            with open(self.file_metadata_path, "w") as f:
                 json.dump(self.file_metadata, f, indent=2)
             logger.info(
                 f"Saved file metadata for {len(self.file_metadata)} "
-                f"files to {output_path}"
+                f"files to {self.file_metadata_path}"
             )
         except Exception as e:
             logger.error(f"Failed to save file metadata: {e}")
