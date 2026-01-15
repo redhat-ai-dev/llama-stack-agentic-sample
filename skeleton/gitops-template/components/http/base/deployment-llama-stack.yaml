@@ -1,4 +1,5 @@
 # Llama Stack Server Deployment
+# run.yaml is baked into the image - env vars override config at runtime
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,9 +23,9 @@ spec:
     spec:
       containers:
         - name: llama-stack
-          # Default bootstrap image for Llama Stack server
-          image: quay.io/redhat-ai-dev/agentic-llama-stack:latest
-          command: ["uv", "run", "llama", "stack", "run", "/config/run.yaml"]
+          # Image with run.yaml baked in
+          image: ${{ values.llamaStackContainer }}
+          imagePullPolicy: Always
           envFrom:
             # Non-sensitive config from template (URLs, model names)
             - configMapRef:
@@ -34,9 +35,24 @@ spec:
                 name: ${{ values.llamaStackSecretName }}
                 optional: false
           env:
+            # Explicitly set provider URLs and keys (also in ConfigMap/Secret via envFrom,
+            # but duplicated here to ensure availability during early initialization)
+            - name: VLLM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{ values.name }}-llama-stack-env
+                  key: VLLM_URL
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ values.llamaStackSecretName }}
+                  key: VLLM_API_KEY
+            - name: OLLAMA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{ values.name }}-llama-stack-env
+                  key: OLLAMA_URL
             # Override paths for container environment
-            - name: MILVUS_DB_PATH
-              value: "/data/milvus.db"
             - name: KV_SQL_STORE_DIR
               value: "/data"
             - name: SQLITE_STORE_DIR
@@ -52,10 +68,10 @@ spec:
               protocol: TCP
           resources:
             requests:
-              memory: "1Gi"
+              memory: "2Gi"
               cpu: "500m"
             limits:
-              memory: "4Gi"
+              memory: "8Gi"
               cpu: "2000m"
           securityContext:
             runAsNonRoot: true
@@ -78,15 +94,12 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           volumeMounts:
-            - name: run-config
-              mountPath: /config
             - name: llama-data
               mountPath: /data
       volumes:
-        - name: run-config
-          configMap:
-            name: ${{ values.name }}-llama-stack-config
         - name: llama-data
-          persistentVolumeClaim:
-            claimName: ${{ values.name }}-llama-data
+          # Ephemeral storage for faiss indexes and sqlite stores
+          # Data is lost on pod restart
+          # For production with persistent RAG data, consider using a PVC instead
+          emptyDir: {}
 

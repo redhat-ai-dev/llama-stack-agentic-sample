@@ -10,15 +10,11 @@ resources:
   {%- if not values.deployOnRemoteCluster %}
   - initialize-namespace/
   {%- endif %}
-  # Persistent storage for Llama Stack data
-  - pvc.yaml
   # RBAC for MCP Server
   - rbac-mcp-server.yaml
-  # ConfigMaps
+  # ConfigMaps (run.yaml and ingestion-config.yaml are baked into images)
   - configmap-app.yaml
-  - configmap-llama-stack.yaml
   - configmap-llama-stack-env.yaml
-  - configmap-ingestion.yaml
   # NOTE: Secrets are user-managed - see TechDocs for example
   # Llama Stack Server
   - deployment-llama-stack.yaml
@@ -30,7 +26,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - route.yaml
-  {%- if values.safetyModel.startswith('ollama/') %}
+  {%- if values.safetyModel.startsWith('ollama/') %}
   # Ollama Server (for inference and/or safety shields)
   - deployment-ollama.yaml
   - service-ollama.yaml

@@ -4,9 +4,13 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: dev-namespace-setup
+  name: ${{ values.name }}-dev-namespace-setup
   labels:
+    app.kubernetes.io/instance: ${{ values.name }}
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: ${{ values.name }}-dev-namespace-setup
     app.kubernetes.io/part-of: ${{ values.name }}
+    app.kubernetes.io/component: namespace-setup
 spec:
   description: |-
     Create the required resources for AI Software Template tasks to run in a namespace.
@@ -22,7 +26,7 @@ spec:
       default: ''
       description: |
         GitLab Personal Access Token for gitlab-auth-secret
-    - name: pipelines_webhook_secret
+    - name: webhook_secret
       type: string
       default: ''
       description: |
@@ -32,11 +36,7 @@ spec:
       default: ''
       description: |
         Image registry token (base64 encoded dockerconfigjson) for rhdh-image-registry-token
-    - name: cosign_public_key
-      type: string
-      default: ''
-      description: |
-        Cosign signing public key (base64 encoded) for cosign-pub secret
+    # Note: cosign_public_key is auto-fetched from openshift-pipelines namespace
   steps:
     - name: setup-namespace
       image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.18"
@@ -45,12 +45,10 @@ spec:
           value: $(params.git_token)
         - name: GITLAB_TOKEN
           value: $(params.gitlab_token)
-        - name: PIPELINES_WEBHOOK_SECRET
-          value: $(params.pipelines_webhook_secret)
+        - name: WEBHOOK_SECRET
+          value: $(params.webhook_secret)
         - name: QUAY_DOCKERCONFIGJSON
           value: $(params.quay_dockerconfigjson)
-        - name: COSIGN_SIGNING_PUBLIC_KEY
-          value: $(params.cosign_public_key)
       script: |
         #!/usr/bin/env bash
         set -o errexit
@@ -59,14 +57,26 @@ spec:
 
         echo "=== Initializing namespace with required secrets ==="
 
-        # Create cosign-pub secret for image signing verification
+        # Auto-fetch cosign public key from openshift-pipelines namespace
         SECRET_NAME="cosign-pub"
-        if [ -n "$COSIGN_SIGNING_PUBLIC_KEY" ]; then
+        echo -n "* Fetching cosign public key from openshift-pipelines: "
+        COSIGN_PUBLIC_KEY=""
+        RETRY_COUNT=0
+        MAX_RETRIES=15
+        while [ -z "${COSIGN_PUBLIC_KEY:-}" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          echo -n "."
+          sleep 2
+          COSIGN_PUBLIC_KEY=$(kubectl get secrets -n openshift-pipelines signing-secrets -o jsonpath='{.data.cosign\.pub}' 2>/dev/null) || true
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+        done
+        
+        if [ -n "$COSIGN_PUBLIC_KEY" ]; then
+          echo " Found!"
           echo -n "* Creating $SECRET_NAME secret: "
           cat <<EOF | kubectl apply -f - >/dev/null
         apiVersion: v1
         data:
-          cosign.pub: $COSIGN_SIGNING_PUBLIC_KEY
+          cosign.pub: $COSIGN_PUBLIC_KEY
         kind: Secret
         metadata:
           labels:
@@ -78,7 +88,8 @@ spec:
         EOF
           echo "OK"
         else
-          echo "* Skipping $SECRET_NAME secret (no value provided)"
+          echo " Not found (openshift-pipelines signing-secrets may not be configured)"
+          echo "* Skipping $SECRET_NAME secret"
         fi
 
         # Create gitlab-auth-secret for GitLab authentication
@@ -110,10 +121,10 @@ spec:
 
         # Create pipelines-secret for Pipelines as Code webhook
         SECRET_NAME="pipelines-secret"
-        if [ -n "$PIPELINES_WEBHOOK_SECRET" ]; then
+        if [ -n "$WEBHOOK_SECRET" ]; then
           echo -n "* Creating $SECRET_NAME secret: "
           kubectl create secret generic "$SECRET_NAME" \
-            --from-literal=webhook.secret=$PIPELINES_WEBHOOK_SECRET \
+            --from-literal=webhook.secret=$WEBHOOK_SECRET \
             --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
           echo "OK"
         else

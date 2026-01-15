@@ -28,7 +28,8 @@ spec:
       containers:
         - name: streamlit-app
           # Default bootstrap image - will be updated by Tekton pipeline via deployment-patch
-          image: quay.io/redhat-ai-dev/agentic-sample:latest
+          image: ${{ values.appContainer }}
+          imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: ${{ values.name }}-app-config
@@ -36,21 +37,31 @@ spec:
                 name: ${{ values.appSecretName }}
                 optional: false
           env:
+            # Fix cache permissions in OpenShift (runs as arbitrary non-root user)
+            - name: HOME
+              value: "/tmp"
+            - name: HF_HOME
+              value: "/tmp/.cache/huggingface"
+            - name: TRANSFORMERS_CACHE
+              value: "/tmp/.cache/huggingface"
+            # Service URLs
             - name: LLAMA_STACK_URL
               value: "http://${{ values.name }}-llama-stack:8321"
             - name: LLAMA_STACK_SERVER_OPENAI
               value: "http://${{ values.name }}-llama-stack:8321/v1/openai/v1"
+            - name: MCP_SERVER_URL
+              value: "http://${{ values.name }}-mcp-server:8080/mcp"
           ports:
             - containerPort: 8501
               name: http
               protocol: TCP
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
               memory: "2Gi"
-              cpu: "1000m"
+              cpu: "500m"
+            limits:
+              memory: "6Gi"
+              cpu: "2000m"
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -72,14 +83,9 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 30
           volumeMounts:
-            - name: config-volume
-              mountPath: /app/config
             - name: llama-data
-              mountPath: /app/.llama
+              mountPath: /app-root/.llama
       volumes:
-        - name: config-volume
-          configMap:
-            name: ${{ values.name }}-ingestion-config
         - name: llama-data
           emptyDir: {}
 

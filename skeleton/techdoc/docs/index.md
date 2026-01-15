@@ -62,7 +62,7 @@ The application uses the following configuration:
 | `GUARDRAIL_MODEL` | Content safety model: `${{ values.guardrailModel }}` |
 | `MCP_TOOL_MODEL` | Model for tool calls: `${{ values.mcpToolModel }}` |
 | `OPENAI_API_KEY` | Required for text embeddings |
-| `GIT_TOKEN` | GitHub integration (optional) |
+| `GITHUB_TOKEN` | GitHub integration (optional) |
 | `GITHUB_URL` | Issue creation repo (optional) |
 
 # **Deployment Information**

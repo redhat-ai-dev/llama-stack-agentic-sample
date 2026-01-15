@@ -43,6 +43,10 @@ DEFAULT_INGESTION_MODE = "sync"
 # MCP tool calls.
 DEFAULT_MCP_TOOL_MODEL = "vllm/redhataiqwen3-8b-fp8-dynamic"
 
+# DEFAULT_MCP_SERVER_URL: The default URL for the MCP
+# (Model Context Protocol) server for Kubernetes tools.
+DEFAULT_MCP_SERVER_URL = "http://localhost:8080/mcp"
+
 # DEFAULT_INGESTION_CONFIG: The default path to the ingestion
 # configuration file.
 DEFAULT_INGESTION_CONFIG = "config/ingestion-config.yaml"

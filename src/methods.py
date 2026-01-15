@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Any, cast
 
@@ -5,10 +6,14 @@ from llama_stack_client.types import ResponseObject
 from openai import OpenAI
 from openai.types.chat import ChatCompletionUserMessageParam
 
+from src.constants import DEFAULT_MCP_SERVER_URL
 from src.exceptions import AgentRunMethodParameterError
 from src.models import ClassificationModel, SupportClassificationModel
 from src.types import WorkflowAgentPrompts, WorkflowState
 from src.utils import extract_mcp_output, logger, submission_states
+
+# MCP Server URL - read from environment or use default
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", DEFAULT_MCP_SERVER_URL)
 
 
 def classification_agent(
@@ -394,7 +399,7 @@ def pod_agent(
     openai_mcp_tool: "dict[str, Any]" = {
         "type": "mcp",
         "server_label": "OpenShift / Kubernetes MCP Tools",
-        "server_url": "http://localhost:8080/mcp",
+        "server_url": MCP_SERVER_URL,
         "require_approval": "never",
         "allowed_tools": ["pods_list_in_namespace"],
     }
@@ -472,7 +477,7 @@ def perf_agent(
     openai_mcp_tool: "dict[str, Any]" = {
         "type": "mcp",
         "server_label": "OpenShift / Kubernetes MCP Tools",
-        "server_url": "http://localhost:8080/mcp",
+        "server_url": MCP_SERVER_URL,
         "require_approval": "never",
         "allowed_tools": ["pods_top"],
     }

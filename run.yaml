@@ -19,8 +19,8 @@ providers:
   - provider_id: vllm
     provider_type: remote::vllm
     config:
-      url: ${env.DEV_CLUSTER_QWEN_URL}
-      api_token: ${env.DEV_CLUSTER_QWEN_API_KEY}
+      url: ${env.VLLM_URL}
+      api_token: ${env.VLLM_API_KEY}
       max_tokens: 4096
       tsl_verify: false
   # - provider_id: gemini
@@ -56,15 +56,14 @@ providers:
           backend: sql_default
           table_name: responses
   vector_io:
-  - provider_id: milvus
-    provider_type: inline::milvus
+  - provider_id: faiss
+    provider_type: inline::faiss
     config:
-      db_path: ${env.MILVUS_DB_PATH:=~/.llama/milvus.db}
+      persistence:
+        namespace: faiss
+        backend: kv_default
       embedding_model: openai/text-embedding-3-small
       embedding_dimension: 1536
-      persistence:
-        namespace: milvus
-        backend: kv_default
   files:
   - provider_id: localfs
     provider_type: inline::localfs
@@ -114,7 +113,7 @@ server:
   port: 8321
 
 vector_stores:
-  default_provider_id: milvus
+  default_provider_id: faiss
   default_embedding_model:
     provider_id: openai
     model_id: text-embedding-3-small
