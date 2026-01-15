@@ -53,8 +53,6 @@ spec:
                   name: ${{ values.name }}-llama-stack-env
                   key: OLLAMA_URL
             # Override paths for container environment
-            - name: MILVUS_DB_PATH
-              value: "/data/milvus.db"
             - name: KV_SQL_STORE_DIR
               value: "/data"
             - name: SQLITE_STORE_DIR
@@ -100,10 +98,8 @@ spec:
               mountPath: /data
       volumes:
         - name: llama-data
-          # Using memory-backed emptyDir to avoid milvus-lite mmap issues in OpenShift
-          # Data is ephemeral and lost on pod restart
+          # Ephemeral storage for faiss indexes and sqlite stores
+          # Data is lost on pod restart
           # For production with persistent RAG data, consider using a PVC instead
-          emptyDir:
-            medium: Memory
-            sizeLimit: 2Gi
+          emptyDir: {}
 

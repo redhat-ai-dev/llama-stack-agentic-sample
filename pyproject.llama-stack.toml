@@ -15,9 +15,8 @@ dependencies = [
     # MCP (Model Context Protocol) for tool runtime
     "mcp>=1.23.1",
     
-    # Vector database - pinned to 2.4.x to avoid mmap issues with BM25 sparse fields in OpenShift
-    # Version 2.5+ has BM25 sparse field support that doesn't work in restricted containers
-    "pymilvus[milvus_lite]>=2.4.0,<2.5.0",
+    # Vector database - using faiss instead of milvus to avoid mmap issues in OpenShift
+    "faiss-cpu>=1.7.4",
     
     # Database for persistence
     "aiosqlite>=0.20.0",

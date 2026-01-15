@@ -12,7 +12,6 @@ dependencies = [
     "pyyaml>=6.0.3",
     "langgraph>=1.0.4",
     "ollama>=0.6.1",
-    "pymilvus[milvus_lite]>=2.6.5",
     "mcp>=1.23.1",
     "chardet>=5.2.0",
     "streamlit>=1.52.1",
