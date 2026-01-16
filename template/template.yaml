@@ -359,6 +359,14 @@ spec:
         url: ../uv.lock
         targetPath: source/uv.lock
 
+    # Fetch license file (required by Containerfile)
+    - id: fetch-license
+      name: Fetch License
+      action: fetch:plain:file
+      input:
+        url: ../LICENSE
+        targetPath: source/LICENSE
+
     # Renders all of the template variables into the techdocs
     - id: fetch-skeleton-docs
       name: Fetch Skeleton Techdocs
