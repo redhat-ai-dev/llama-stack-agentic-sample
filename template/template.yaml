@@ -232,13 +232,13 @@ spec:
         - imageOrg
         - imageName
         - namespace
-        - pipelineSecretName
+        - cicdCredentialsSecretName
       ui:order:
         - imageRegistry
         - imageOrg
         - imageName
         - namespace
-        - pipelineSecretName
+        - cicdCredentialsSecretName
         - deployArgoCDApplicationOnRemoteCluster
         - remoteClusterAPIUrl
         - remoteClusterDeploymentNamespace
@@ -268,10 +268,10 @@ spec:
           ui:autofocus: true
           ui:options:
             rows: 5
-        pipelineSecretName:
-          title: Pipeline Secrets Name
+        cicdCredentialsSecretName:
+          title: CI/CD Credentials Secret Name
           type: string
-          default: pipeline-secrets
+          default: cicd-credentials
           description: |
             Name of a Kubernetes Secret containing CI/CD pipeline credentials:
             • GIT_TOKEN - GitHub/GitLab PAT for GitOps repository operations
@@ -479,7 +479,7 @@ spec:
           vllmEnabled: true
           openaiEnabled: true
           # Pipeline/Deployment configuration
-          pipelineSecretName: ${{ parameters.pipelineSecretName }}
+          cicdCredentialsSecretName: ${{ parameters.cicdCredentialsSecretName }}
           # Remote cluster configuration
           deployOnRemoteCluster: ${{ parameters.deployArgoCDApplicationOnRemoteCluster }}
           remoteClusterAPIUri: ${{ parameters.remoteClusterAPIUrl }}

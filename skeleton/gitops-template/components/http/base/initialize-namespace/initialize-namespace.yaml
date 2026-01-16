@@ -28,30 +28,30 @@ spec:
         - name: initialize-namespace
           image: quay.io/redhat-ai-dev/utils:latest
           env:
-            # These environment variables are read from the pipeline-secrets Secret
+            # These environment variables are read from the cicd-credentials Secret
             # configured in the template. Keys match env var names for consistency.
             - name: GIT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
+                  name: ${{ values.cicdCredentialsSecretName }}
                   key: GIT_TOKEN
                   optional: true
             - name: GITLAB_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
+                  name: ${{ values.cicdCredentialsSecretName }}
                   key: GITLAB_TOKEN
                   optional: true
             - name: WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
+                  name: ${{ values.cicdCredentialsSecretName }}
                   key: WEBHOOK_SECRET
                   optional: true
             - name: QUAY_DOCKERCONFIGJSON
               valueFrom:
                 secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
+                  name: ${{ values.cicdCredentialsSecretName }}
                   key: QUAY_DOCKERCONFIGJSON
                   optional: true
             # COSIGN_PUBLIC_KEY is auto-fetched from openshift-pipelines namespace
@@ -64,27 +64,27 @@ spec:
               
               # Create a PipelineRun that runs the dev-namespace-setup Task
               # The Task is deployed in the same namespace (no cluster resolver needed)
-              cat <<PIPELINE_RUN | oc create -f -
-              apiVersion: tekton.dev/v1
-              kind: PipelineRun
-              metadata:
-                generateName: dev-namespace-setup-
-                namespace: $NS
-              spec:
-                pipelineSpec:
-                  tasks:
-                    - name: configure-namespace
-                      taskRef:
-                        name: ${{ values.name }}-dev-namespace-setup
-                      params:
-                        - name: git_token
-                          value: "${GIT_TOKEN:-}"
-                        - name: gitlab_token
-                          value: "${GITLAB_TOKEN:-}"
-                        - name: webhook_secret
-                          value: "${WEBHOOK_SECRET:-}"
-                        - name: quay_dockerconfigjson
-                          value: "${QUAY_DOCKERCONFIGJSON:-}"
-              PIPELINE_RUN
+              cat <<EOF | oc create -f -
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: dev-namespace-setup-
+  namespace: $NS
+spec:
+  pipelineSpec:
+    tasks:
+      - name: configure-namespace
+        taskRef:
+          name: ${{ values.name }}-dev-namespace-setup
+        params:
+          - name: git_token
+            value: "${GIT_TOKEN:-}"
+          - name: gitlab_token
+            value: "${GITLAB_TOKEN:-}"
+          - name: webhook_secret
+            value: "${WEBHOOK_SECRET:-}"
+          - name: quay_dockerconfigjson
+            value: "${QUAY_DOCKERCONFIGJSON:-}"
+EOF
               
               echo "=== PipelineRun created successfully ==="
