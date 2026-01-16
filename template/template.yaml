@@ -312,24 +312,52 @@ spec:
   # ==================== Template Steps ====================
   steps:
     # -------------------- SOURCE REPOSITORY --------------------
-    # Get the application source code
-    - id: fetch-base
-      name: Fetch Base
-      action: fetch:template
+    # Fetch application source code
+    - id: fetch-src
+      name: Fetch Source Code
+      action: fetch:plain
       input:
-        url: ../
-        targetPath: source
-        copyWithoutTemplating:
-          - "**/*.py"
-          - "**/*.yaml"
-          - "**/*.yml"
-          - "**/*.json"
-          - "**/*.toml"
-          - "**/*.lock"
-          - "**/*.md"
-          - "**/Containerfile"
-          - "**/Makefile"
-          - "**/.gitignore"
+        url: ../src
+        targetPath: source/src
+
+    # Fetch configuration files
+    - id: fetch-config
+      name: Fetch Config
+      action: fetch:plain
+      input:
+        url: ../config
+        targetPath: source/config
+
+    # Fetch main application entry point
+    - id: fetch-streamlit-app
+      name: Fetch Streamlit App
+      action: fetch:plain:file
+      input:
+        url: ../streamlit_app.py
+        targetPath: source/streamlit_app.py
+
+    # Fetch container build files
+    - id: fetch-containerfile
+      name: Fetch Containerfile
+      action: fetch:plain:file
+      input:
+        url: ../Containerfile
+        targetPath: source/Containerfile
+
+    # Fetch dependency files
+    - id: fetch-pyproject
+      name: Fetch PyProject
+      action: fetch:plain:file
+      input:
+        url: ../pyproject.toml
+        targetPath: source/pyproject.toml
+
+    - id: fetch-uv-lock
+      name: Fetch UV Lock
+      action: fetch:plain:file
+      input:
+        url: ../uv.lock
+        targetPath: source/uv.lock
 
     # Renders all of the template variables into the techdocs
     - id: fetch-skeleton-docs

@@ -55,9 +55,6 @@ COPY --chown=1001:1001 ./streamlit_app.py ./
 # Copy configuration (baked in - single source of truth)
 COPY --chown=1001:1001 ./config/ ./config/
 
-# Create empty rag_file_metadata.json (generated at runtime during ingestion)
-RUN echo '{}' > /app-root/rag_file_metadata.json
-
 # Install runtime dependencies for docling/opencv (libGL for PDF processing)
 USER root
 RUN microdnf install -y mesa-libGL && \
