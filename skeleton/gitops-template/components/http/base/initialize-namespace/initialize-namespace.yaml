@@ -64,27 +64,27 @@ spec:
               
               # Create a PipelineRun that runs the dev-namespace-setup Task
               # The Task is deployed in the same namespace (no cluster resolver needed)
-              cat <<EOF | oc create -f -
-apiVersion: tekton.dev/v1
-kind: PipelineRun
-metadata:
-  generateName: dev-namespace-setup-
-  namespace: $NS
-spec:
-  pipelineSpec:
-    tasks:
-      - name: configure-namespace
-        taskRef:
-          name: ${{ values.name }}-dev-namespace-setup
-        params:
-          - name: git_token
-            value: "${GIT_TOKEN:-}"
-          - name: gitlab_token
-            value: "${GITLAB_TOKEN:-}"
-          - name: webhook_secret
-            value: "${WEBHOOK_SECRET:-}"
-          - name: quay_dockerconfigjson
-            value: "${QUAY_DOCKERCONFIGJSON:-}"
-EOF
+              sed 's/^              //' <<PIPELINERUN | oc create -f -
+              apiVersion: tekton.dev/v1
+              kind: PipelineRun
+              metadata:
+                generateName: dev-namespace-setup-
+                namespace: $NS
+              spec:
+                pipelineSpec:
+                  tasks:
+                    - name: configure-namespace
+                      taskRef:
+                        name: ${{ values.name }}-dev-namespace-setup
+                      params:
+                        - name: git_token
+                          value: "${GIT_TOKEN:-}"
+                        - name: gitlab_token
+                          value: "${GITLAB_TOKEN:-}"
+                        - name: webhook_secret
+                          value: "${WEBHOOK_SECRET:-}"
+                        - name: quay_dockerconfigjson
+                          value: "${QUAY_DOCKERCONFIGJSON:-}"
+              PIPELINERUN
               
               echo "=== PipelineRun created successfully ==="
