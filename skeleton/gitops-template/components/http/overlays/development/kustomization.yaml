@@ -4,4 +4,4 @@ patchesStrategicMerge:
   - deployment-patch.yaml
 resources:
   - ../../base
-
+  - tekton-repositories/

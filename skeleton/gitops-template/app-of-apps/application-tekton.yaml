@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ${{ values.name }}-tekton
+  name: ${{ values.name }}-app-tekton
   namespace: ${{ values.argoNS }}
   finalizers: ["resources-finalizer.argocd.argoproj.io"]
 spec:
@@ -11,8 +11,8 @@ spec:
     repoURL: ${{ values.repoURL }}.git
     targetRevision: main
   destination:
+    namespace: ${{ values.namespace }}
     server: https://kubernetes.default.svc
-    namespace: ${{ values.rhdhNamespace }}
   syncPolicy:
     managedNamespaceMetadata:
       labels:
@@ -23,4 +23,3 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
-
