@@ -1,17 +1,21 @@
-name: Automerge
+name: Trigger PipelineRun on Push
+
 on:
   workflow_dispatch:
     inputs:
       pr_url:
-        description: 'PR URL to merge'
+        description: 'The PR URL that need to be merged to trigger the pipelinerun'
         required: true
 jobs:
   automerge:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      repository-projects: write
     steps:
-      - name: Merge PR
+      - name: Enable Automerge
+        run: gh pr merge --auto --squash "$PR_URL"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr merge ${{ github.event.inputs.pr_url }} --merge --admin
-
+          PR_URL: ${{ github.event.inputs.pr_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

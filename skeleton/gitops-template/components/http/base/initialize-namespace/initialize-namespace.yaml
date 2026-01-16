@@ -1,11 +1,7 @@
 # Initialize Namespace Job
 # This Job runs on deployment to set up the namespace with required secrets
 # It triggers a PipelineRun that uses the local dev-namespace-setup Task
-#
-# The Task parameters can be configured via:
-# 1. Pre-existing Kubernetes secrets in the namespace
-# 2. Environment variables set by the cluster admin
-# 3. Manual configuration after deployment
+# The Task reads credentials directly from the cicd-credentials secret
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -27,34 +23,6 @@ spec:
       containers:
         - name: initialize-namespace
           image: quay.io/redhat-ai-dev/utils:latest
-          env:
-            # These environment variables are read from the pipeline-secrets Secret
-            # configured in the template. Keys match env var names for consistency.
-            - name: GIT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
-                  key: GIT_TOKEN
-                  optional: true
-            - name: GITLAB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
-                  key: GITLAB_TOKEN
-                  optional: true
-            - name: WEBHOOK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
-                  key: WEBHOOK_SECRET
-                  optional: true
-            - name: QUAY_DOCKERCONFIGJSON
-              valueFrom:
-                secretKeyRef:
-                  name: ${{ values.pipelineSecretName }}
-                  key: QUAY_DOCKERCONFIGJSON
-                  optional: true
-            # COSIGN_PUBLIC_KEY is auto-fetched from openshift-pipelines namespace
           command:
             - /bin/bash
             - -c
@@ -63,8 +31,8 @@ spec:
               echo "=== Initialize RHDH Namespace: $NS ==="
               
               # Create a PipelineRun that runs the dev-namespace-setup Task
-              # The Task is deployed in the same namespace (no cluster resolver needed)
-              cat <<PIPELINE_RUN | oc create -f -
+              # The Task reads credentials directly from the cicd-credentials secret
+              cat <<PIPELINERUN | oc create -f -
               apiVersion: tekton.dev/v1
               kind: PipelineRun
               metadata:
@@ -77,14 +45,8 @@ spec:
                       taskRef:
                         name: ${{ values.name }}-dev-namespace-setup
                       params:
-                        - name: git_token
-                          value: "${GIT_TOKEN:-}"
-                        - name: gitlab_token
-                          value: "${GITLAB_TOKEN:-}"
-                        - name: webhook_secret
-                          value: "${WEBHOOK_SECRET:-}"
-                        - name: quay_dockerconfigjson
-                          value: "${QUAY_DOCKERCONFIGJSON:-}"
-              PIPELINE_RUN
+                        - name: cicd_secret_name
+                          value: "${{ values.cicdCredentialsSecretName }}"
+              PIPELINERUN
               
               echo "=== PipelineRun created successfully ==="

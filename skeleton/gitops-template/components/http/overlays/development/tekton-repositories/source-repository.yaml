@@ -13,4 +13,3 @@ spec:
       name: ${{ values.webhookSecret }}
       key: ${{ values.webhookSecretKey }}
   {%- endif %}
-

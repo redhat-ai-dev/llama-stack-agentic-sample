@@ -3,4 +3,3 @@ kind: Kustomization
 resources:
   - source-repository.yaml
   - gitops-repository.yaml
-

@@ -232,13 +232,13 @@ spec:
         - imageOrg
         - imageName
         - namespace
-        - pipelineSecretName
+        - cicdCredentialsSecretName
       ui:order:
         - imageRegistry
         - imageOrg
         - imageName
         - namespace
-        - pipelineSecretName
+        - cicdCredentialsSecretName
         - deployArgoCDApplicationOnRemoteCluster
         - remoteClusterAPIUrl
         - remoteClusterDeploymentNamespace
@@ -268,10 +268,10 @@ spec:
           ui:autofocus: true
           ui:options:
             rows: 5
-        pipelineSecretName:
-          title: Pipeline Secrets Name
+        cicdCredentialsSecretName:
+          title: CI/CD Credentials Secret Name
           type: string
-          default: pipeline-secrets
+          default: cicd-credentials
           description: |
             Name of a Kubernetes Secret containing CI/CD pipeline credentials:
             • GIT_TOKEN - GitHub/GitLab PAT for GitOps repository operations
@@ -312,24 +312,60 @@ spec:
   # ==================== Template Steps ====================
   steps:
     # -------------------- SOURCE REPOSITORY --------------------
-    # Get the application source code
-    - id: fetch-base
-      name: Fetch Base
-      action: fetch:template
+    # Fetch application source code
+    - id: fetch-src
+      name: Fetch Source Code
+      action: fetch:plain
       input:
-        url: ../
-        targetPath: source
-        copyWithoutTemplating:
-          - "**/*.py"
-          - "**/*.yaml"
-          - "**/*.yml"
-          - "**/*.json"
-          - "**/*.toml"
-          - "**/*.lock"
-          - "**/*.md"
-          - "**/Containerfile"
-          - "**/Makefile"
-          - "**/.gitignore"
+        url: ../src
+        targetPath: source/src
+
+    # Fetch configuration files
+    - id: fetch-config
+      name: Fetch Config
+      action: fetch:plain
+      input:
+        url: ../config
+        targetPath: source/config
+
+    # Fetch main application entry point
+    - id: fetch-streamlit-app
+      name: Fetch Streamlit App
+      action: fetch:plain:file
+      input:
+        url: ../streamlit_app.py
+        targetPath: source/streamlit_app.py
+
+    # Fetch container build files
+    - id: fetch-containerfile
+      name: Fetch Containerfile
+      action: fetch:plain:file
+      input:
+        url: ../Containerfile
+        targetPath: source/Containerfile
+
+    # Fetch dependency files
+    - id: fetch-pyproject
+      name: Fetch PyProject
+      action: fetch:plain:file
+      input:
+        url: ../pyproject.toml
+        targetPath: source/pyproject.toml
+
+    - id: fetch-uv-lock
+      name: Fetch UV Lock
+      action: fetch:plain:file
+      input:
+        url: ../uv.lock
+        targetPath: source/uv.lock
+
+    # Fetch license file (required by Containerfile)
+    - id: fetch-license
+      name: Fetch License
+      action: fetch:plain:file
+      input:
+        url: ../LICENSE
+        targetPath: source/LICENSE
 
     # Renders all of the template variables into the techdocs
     - id: fetch-skeleton-docs
@@ -451,7 +487,7 @@ spec:
           vllmEnabled: true
           openaiEnabled: true
           # Pipeline/Deployment configuration
-          pipelineSecretName: ${{ parameters.pipelineSecretName }}
+          cicdCredentialsSecretName: ${{ parameters.cicdCredentialsSecretName }}
           # Remote cluster configuration
           deployOnRemoteCluster: ${{ parameters.deployArgoCDApplicationOnRemoteCluster }}
           remoteClusterAPIUri: ${{ parameters.remoteClusterAPIUrl }}

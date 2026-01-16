@@ -15,40 +15,21 @@ spec:
   description: |-
     Create the required resources for AI Software Template tasks to run in a namespace.
     This includes secrets for Git authentication, image registry, webhooks, and signing.
+    Reads credentials from the cicd-credentials secret in the same namespace.
   params:
-    - name: git_token
+    - name: cicd_secret_name
       type: string
-      default: ''
+      default: 'cicd-credentials'
       description: |
-        Git token for gitops-auth-secret (GitHub/GitLab PAT)
-    - name: gitlab_token
-      type: string
-      default: ''
-      description: |
-        GitLab Personal Access Token for gitlab-auth-secret
-    - name: webhook_secret
-      type: string
-      default: ''
-      description: |
-        Pipelines as Code webhook secret for pipelines-secret
-    - name: quay_dockerconfigjson
-      type: string
-      default: ''
-      description: |
-        Image registry token (base64 encoded dockerconfigjson) for rhdh-image-registry-token
+        Name of the Kubernetes Secret containing CI/CD credentials
+        (GIT_TOKEN, GITLAB_TOKEN, WEBHOOK_SECRET, QUAY_DOCKERCONFIGJSON)
     # Note: cosign_public_key is auto-fetched from openshift-pipelines namespace
   steps:
     - name: setup-namespace
       image: "registry.redhat.io/openshift4/ose-tools-rhel9:v4.18"
       env:
-        - name: GIT_TOKEN
-          value: $(params.git_token)
-        - name: GITLAB_TOKEN
-          value: $(params.gitlab_token)
-        - name: WEBHOOK_SECRET
-          value: $(params.webhook_secret)
-        - name: QUAY_DOCKERCONFIGJSON
-          value: $(params.quay_dockerconfigjson)
+        - name: CICD_SECRET_NAME
+          value: $(params.cicd_secret_name)
       script: |
         #!/usr/bin/env bash
         set -o errexit
@@ -56,6 +37,13 @@ spec:
         set -o pipefail
 
         echo "=== Initializing namespace with required secrets ==="
+
+        # Read credentials from the cicd-credentials secret
+        echo "* Reading credentials from $CICD_SECRET_NAME secret..."
+        GIT_TOKEN=$(kubectl get secret "$CICD_SECRET_NAME" -o jsonpath='{.data.GIT_TOKEN}' 2>/dev/null | base64 -d 2>/dev/null) || GIT_TOKEN=""
+        GITLAB_TOKEN=$(kubectl get secret "$CICD_SECRET_NAME" -o jsonpath='{.data.GITLAB_TOKEN}' 2>/dev/null | base64 -d 2>/dev/null) || GITLAB_TOKEN=""
+        WEBHOOK_SECRET=$(kubectl get secret "$CICD_SECRET_NAME" -o jsonpath='{.data.WEBHOOK_SECRET}' 2>/dev/null | base64 -d 2>/dev/null) || WEBHOOK_SECRET=""
+        QUAY_DOCKERCONFIGJSON=$(kubectl get secret "$CICD_SECRET_NAME" -o jsonpath='{.data.QUAY_DOCKERCONFIGJSON}' 2>/dev/null | base64 -d 2>/dev/null) || QUAY_DOCKERCONFIGJSON=""
 
         # Auto-fetch cosign public key from openshift-pipelines namespace
         SECRET_NAME="cosign-pub"
@@ -94,13 +82,15 @@ spec:
 
         # Create gitlab-auth-secret for GitLab authentication
         SECRET_NAME="gitlab-auth-secret"
-        if [ -n "$GITLAB_TOKEN" ]; then
+        if kubectl get secret "$SECRET_NAME" >/dev/null 2>&1; then
+          echo "* $SECRET_NAME secret already exists, skipping"
+        elif [ -n "$GITLAB_TOKEN" ]; then
           echo -n "* Creating $SECRET_NAME secret: "
           kubectl create secret generic "$SECRET_NAME" \
             --from-literal=password=$GITLAB_TOKEN \
             --from-literal=username=oauth2 \
             --type=kubernetes.io/basic-auth \
-            --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+            --dry-run=client -o yaml | kubectl apply --filename - >/dev/null
           echo "OK"
         else
           echo "* Skipping $SECRET_NAME secret (no value provided)"
@@ -108,12 +98,14 @@ spec:
 
         # Create gitops-auth-secret for Git operations
         SECRET_NAME="gitops-auth-secret"
-        if [ -n "$GIT_TOKEN" ]; then
+        if kubectl get secret "$SECRET_NAME" >/dev/null 2>&1; then
+          echo "* $SECRET_NAME secret already exists, skipping"
+        elif [ -n "$GIT_TOKEN" ]; then
           echo -n "* Creating $SECRET_NAME secret: "
           kubectl create secret generic "$SECRET_NAME" \
             --from-literal=password=$GIT_TOKEN \
             --type=kubernetes.io/basic-auth \
-            --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+            --dry-run=client -o yaml | kubectl apply --filename - >/dev/null
           echo "OK"
         else
           echo "* Skipping $SECRET_NAME secret (no value provided)"
@@ -121,11 +113,13 @@ spec:
 
         # Create pipelines-secret for Pipelines as Code webhook
         SECRET_NAME="pipelines-secret"
-        if [ -n "$WEBHOOK_SECRET" ]; then
+        if kubectl get secret "$SECRET_NAME" >/dev/null 2>&1; then
+          echo "* $SECRET_NAME secret already exists, skipping"
+        elif [ -n "$WEBHOOK_SECRET" ]; then
           echo -n "* Creating $SECRET_NAME secret: "
           kubectl create secret generic "$SECRET_NAME" \
             --from-literal=webhook.secret=$WEBHOOK_SECRET \
-            --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+            --dry-run=client -o yaml | kubectl apply --filename - >/dev/null
           echo "OK"
         else
           echo "* Skipping $SECRET_NAME secret (no value provided)"
@@ -133,13 +127,15 @@ spec:
 
         # Create rhdh-image-registry-token for image registry authentication
         SECRET_NAME="rhdh-image-registry-token"
-        if [ -n "$QUAY_DOCKERCONFIGJSON" ]; then
+        if kubectl get secret "$SECRET_NAME" >/dev/null 2>&1; then
+          echo "* $SECRET_NAME secret already exists, skipping"
+        elif [ -n "$QUAY_DOCKERCONFIGJSON" ]; then
           echo -n "* Creating $SECRET_NAME secret: "
           DATA=$(mktemp)
           echo -n "$QUAY_DOCKERCONFIGJSON" >"$DATA"
           kubectl create secret docker-registry "$SECRET_NAME" \
             --from-file=.dockerconfigjson="$DATA" --dry-run=client -o yaml | \
-            kubectl apply --filename - --overwrite=true >/dev/null
+            kubectl apply --filename - >/dev/null
           rm "$DATA"
           echo -n "."
           
