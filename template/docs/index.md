@@ -4,7 +4,7 @@ This Software Template deploys a sophisticated **AI Agentic Workflow** applicati
 
 ## **What This Application Does**
 
-The Llama Stack Agentic application serves as a prototype "developer portal" chat interface that:
+The Llama Stack Agentic application serves as a prototype chat interface that:
 
 1. **Classifies User Questions** - Takes incoming questions and dynamically routes them to specialized AI Agents based on the content and intent of the prompt
 2. **Multi-Agent Orchestration** - Employs multiple specialized agents for different domains:
@@ -12,22 +12,23 @@ The Llama Stack Agentic application serves as a prototype "developer portal" cha
    - **HR Agent** - Processes human resources related queries
    - **Sales Agent** - Addresses sales and business development questions
    - **Procurement Agent** - Manages procurement and vendor queries
-   - **Tech Support Agent** - Handles technical support issues with Kubernetes integration
-3. **RAG-Powered Responses** - Uses Retrieval-Augmented Generation (RAG) with vector databases to provide accurate, context-aware responses
-4. **Kubernetes Integration** - Includes a Kubernetes MCP (Model Context Protocol) server that allows AI agents to query cluster state, list namespaces, get events, and diagnose application issues
-5. **Content Safety** - Implements guardrails using Llama Guard for content moderation
+   - **Tech Support Agent** - Handles technical support issues with OpenShift/Kubernetes integration
+3. **RAG-Powered Responses** - Uses Retrieval-Augmented Generation (RAG) with vector stores to provide accurate, context-aware responses
+4. **Content Safety** - Implements guardrails using Llama Guard for content moderation
+5. **OpenShift/Kubernetes Integration** - Tech Support agent uses MCP tools to list pods and monitor resource consumption
+6. **GitHub Issue Tracking** - Tech Support agent creates GitHub issues with LLM responses, RAG sources, MCP tool invocations and classification details for follow-up
 
 ## **Architecture Components**
 
-This template deploys three main components:
+This template deploys four interconnected services:
 
-| Component | Description | Port |
-|-----------|-------------|------|
-| **Streamlit UI** | Interactive chat interface for users | 8501 |
-| **Llama Stack Server** | AI inference orchestration server | 8321 |
-| **Kubernetes MCP Server** | Tool server for Kubernetes operations | 8080 |
+| Component | Port | Description |
+|-----------|------|-------------|
+| **Streamlit UI** | 8501 | Interactive chat interface |
+| **Llama Stack Server** | 8321 | AI inference orchestration |
+| **Ollama** | 11434 | Local LLM inference engine |
+| **Kubernetes MCP Server** | 8080 | Cluster introspection tools |
 
-![Architecture Overview](./images/llama-stack-agentic.png)
 
 ## **Key Features**
 
@@ -36,6 +37,7 @@ This template deploys three main components:
 - **Visual Workflow Tracking** - See which agents handle your requests with visual indicators
 - **Performance Metrics** - View processing times for each agent and RAG queries
 - **Source Attribution** - Expandable sections showing RAG document sources
+- **GitHub Issue Links** - Direct links to created GitHub issues when Tech Support agent uses the GitHub MCP tool
 
 ## **Model Server Options**
 
@@ -44,7 +46,6 @@ The template supports multiple inference providers through Llama Stack:
 - **vLLM** - High-throughput GPU-accelerated inference (requires NVIDIA GPUs)
 - **Ollama** - Local model inference for development
 - **OpenAI** - Cloud-based inference using OpenAI's API
-- **Bring Your Own** - Connect to any OpenAI-compatible endpoint
 
 ## **Additional Resources**
 

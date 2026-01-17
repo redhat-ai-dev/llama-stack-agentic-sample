@@ -6,8 +6,8 @@ Before using this Software Template, ensure your environment meets the following
 
 ### **OpenShift/Kubernetes Version**
 
-- OpenShift 4.12+ or Kubernetes 1.25+
-- Cluster admin access (for ClusterRole creation)
+- Tested on OpenShift 4.18 (Kubernetes v1.31)
+- ArgoCD must have cluster admin permissions to create ClusterRole/ClusterRoleBinding resources for the MCP Server's cluster introspection capabilities
 
 ### **Required Operators**
 
@@ -15,37 +15,39 @@ Before using this Software Template, ensure your environment meets the following
 |----------|---------|----------|
 | **OpenShift GitOps (ArgoCD)** | GitOps deployment | Yes |
 | **Red Hat OpenShift Pipelines** | CI/CD pipelines | Yes |
+| **Node Feature Discovery (NFD)** | Detects hardware features on nodes | For self-hosted vLLM with GPU |
+| **NVIDIA GPU Operator** | Enables GPU access for containers | For self-hosted vLLM with GPU |
 
 ### **Resource Requirements**
 
-The template deploys three services with the following minimum requirements:
+The template deploys four services with the following requirements:
 
 | Component | CPU Request | Memory Request | CPU Limit | Memory Limit |
 |-----------|-------------|----------------|-----------|--------------|
-| Streamlit UI | 250m | 512Mi | 1000m | 2Gi |
-| Llama Stack | 500m | 1Gi | 2000m | 4Gi |
+| Streamlit UI | 500m | 2Gi | 2000m | 6Gi |
+| Llama Stack | 500m | 2Gi | 2000m | 8Gi |
+| Ollama | 1000m | 4Gi | 4000m | 16Gi |
 | MCP Server | 100m | 128Mi | 500m | 512Mi |
 
-**Total Minimum**: 850m CPU, 1.6Gi Memory
+**Total Minimum**: 2100m CPU (~2.1 cores), ~8.1Gi Memory
 
 ### **Storage Requirements**
 
-- **10Gi PersistentVolumeClaim** for Llama Stack data (vector DBs, SQLite stores)
+- **20Gi PersistentVolumeClaim** for Ollama models (e.g., llama-guard3:8b ~5GB)
 - Storage class with `ReadWriteOnce` access mode
+- Llama Stack uses ephemeral storage (emptyDir) - data is lost on pod restart
 
 ## **External Dependencies**
 
 ### **OpenAI API Key** (Required)
 
-An OpenAI API key is required for text embeddings (`text-embedding-3-small` model).
+An OpenAI API key is required for text embeddings (`text-embedding-3-small` model). Additionally, OpenAI models can be configured as the inference model or MCP tool model if you prefer cloud-based inference over self-hosted options like Ollama or vLLM.
 
-1. Create an account at [platform.openai.com](https://platform.openai.com)
-2. Generate an API key from the API Keys section
-3. Store the key securely for deployment
+An API key can be obtained from [platform.openai.com](https://platform.openai.com).
 
 !!! warning "API Costs"
     
-    The embedding model incurs costs per token. Monitor your usage through 
+    OpenAI models incur costs per token for embeddings and inference. Monitor your usage through 
     the OpenAI dashboard.
 
 ### **Inference Model Provider** (Choose One)
@@ -53,7 +55,7 @@ An OpenAI API key is required for text embeddings (`text-embedding-3-small` mode
 #### Option 1: vLLM (Recommended for Production)
 
 - Requires NVIDIA GPU nodes (compute capability 7.0+)
-- Deploy vLLM serving a model like `ibm-granite/granite-3.1-8b-instruct`
+- Deploy vLLM serving a model like `Qwen/Qwen3-8B`
 - Requires model endpoint URL and API key
 
 #### Option 2: Ollama (Development)
@@ -72,11 +74,14 @@ An OpenAI API key is required for text embeddings (`text-embedding-3-small` mode
 
 For the Git Agent functionality:
 
-- **GitHub Personal Access Token** with `repo` and `issues` scopes
-- Target repository for issue creation
-- GitHub username for issue assignment
+- **GitHub Personal Access Token** with `repo` scope (includes issue creation and comments)
+- A target repository where the Git Agent will create issues
 
 ## **Red Hat Developer Hub Configuration**
+
+!!! info "Platform Administrator Configuration"
+
+    The following configurations are typically pre-configured by the RHDH platform administrator. If you're using an existing RHDH instance, these should already be in place.
 
 ### **ArgoCD Configuration**
 
@@ -113,9 +118,9 @@ The following external endpoints must be accessible:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `api.openai.com` | Text embeddings |
-| `huggingface.co` | Model downloads (if using HF models) |
+| `api.openai.com` | Text embeddings and inference (if using OpenAI models) |
 | `github.com` or `gitlab.com` | Document ingestion, issue creation |
+| Your vLLM endpoint | Inference (if using self-hosted vLLM) |
 
 ### **Internal Communication**
 
@@ -123,29 +128,16 @@ Services communicate internally:
 
 ```
 Streamlit UI (8501) → Llama Stack (8321)
+Llama Stack (8321) → Ollama (11434)
 Llama Stack (8321) → MCP Server (8080)
 MCP Server (8080) → Kubernetes API (443)
 ```
 
-## **Pre-Deployment Checklist**
-
-- [ ] OpenShift GitOps operator installed
-- [ ] OpenShift Pipelines operator installed
-- [ ] ArgoCD instance configured in RHDH
-- [ ] GitHub/GitLab integration configured
-- [ ] Container registry access configured (e.g., Quay.io)
-- [ ] OpenAI API key obtained
-- [ ] Inference model provider decided (vLLM/Ollama/OpenAI)
-- [ ] Target namespace created (or use template default)
-- [ ] Storage class available for PVC creation
-- [ ] Cluster admin access for ClusterRole creation
-
 ## **GPU Considerations**
 
-If using vLLM for inference:
+If using self-hosted vLLM for inference:
 
-- Node pools with NVIDIA GPUs (A100, A10G, T4, or similar)
-- NVIDIA GPU Operator installed
-- At least 16GB GPU memory for 8B parameter models
-- Tolerations configured for GPU nodes
+- Node pools with NVIDIA GPUs (tested on AWS `g5.4xlarge` with A10G - 24GB GPU memory)
+- Node Feature Discovery (NFD) and NVIDIA GPU Operator installed (see [Required Operators](#required-operators))
+- At least 16GB GPU memory recommended for 8B parameter models
 

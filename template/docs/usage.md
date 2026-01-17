@@ -6,130 +6,111 @@ This AI Software Template allows you to customize and deploy a complete agentic 
 
 ### **Application Information**
 
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| **Name** | Unique name for your application | Yes |
-| **Owner** | Owner of the component in RHDH | Yes |
-| **ArgoCD Namespace** | Target namespace for ArgoCD | Yes |
-| **ArgoCD Instance** | ArgoCD instance name | Yes |
-| **ArgoCD Project** | ArgoCD project name | Yes |
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| **Name** | Unique name for your application | - | Yes |
+| **Owner** | Owner of the component in RHDH | `user:guest` | Yes |
+| **ArgoCD Namespace** | Target namespace for ArgoCD | `openshift-gitops` | Yes |
+| **ArgoCD Instance** | ArgoCD instance name | `default` | Yes |
+| **ArgoCD Project** | ArgoCD project name | `default` | Yes |
+| **Include ArgoCD App Label** | Include a user provided ArgoCD Application Label | `true` | No |
+| **ArgoCD Application Label** | Label RHDH uses to identify ArgoCD Applications | `rolling-demo` | Conditional |
 
-### **Model Configuration**
+### **Llama Stack Configuration**
 
-| Parameter | Description | Options |
-|-----------|-------------|---------|
-| **Inference Model** | Primary model for classification | `vllm/qwen3-8b-fp8`, `openai/gpt-4o`, custom |
-| **Guardrail Model** | Content safety model | `ollama/llama-guard3:8b`, custom |
-| **MCP Tool Model** | Model for tool calls | Same options as Inference Model |
-| **Inference Provider** | Backend for model inference | vLLM, Ollama, OpenAI |
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| **vLLM Server URL** | URL of the vLLM inference server endpoint | - | Yes |
+| **Safety Model** | Model for content safety guardrails | `ollama/llama-guard3:8b` | No |
+| **Llama Stack Secrets Name** | Kubernetes Secret name containing `VLLM_API_KEY` and `OPENAI_API_KEY` | `llama-stack-secrets` | Yes |
+
+### **Application Configuration**
+
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| **Inference Model** | Model ID for classification and inference | `vllm/redhataiqwen3-8b-fp8-dynamic` | Yes |
+| **MCP Tool Model** | Model for MCP Kubernetes tool calls (must support function calling) | `vllm/redhataiqwen3-8b-fp8-dynamic` | Yes |
+| **GitHub Repository URL** | GitHub repository URL for issue creation and comments | - | Yes |
+| **Application Secrets Name** | Kubernetes Secret name containing `GITHUB_TOKEN` | `app-secrets` | Yes |
+
+!!! tip "Model Selection"
+    
+    For optimal performance, models that grade well for tool calling are recommended:
+    
+    - `redhataiqwen3-8b-fp8-dynamic` via vLLM
+    - `gpt-4o` or `gpt-4o-mini` via OpenAI
 
 ### **Repository Information**
 
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| **Host Type** | GitHub or GitLab | Yes |
-| **Repository Server** | Git server URL | Yes |
-| **Repository Owner** | Organization or user | Yes |
-| **Repository Name** | Name for source repo | Yes |
-| **Branch** | Default branch name | Yes |
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| **Host Type** | GitHub or GitLab | `GitHub` | Yes |
+| **Repository Server** | Git server URL | `github.com` or `gitlab.com` | Yes |
+| **Repository Owner** | Organization or user | - | Yes |
+| **Repository Name** | Name for source repo | - | Yes |
+| **Branch** | Default branch name | `main` | Yes |
 
 ### **Deployment Information**
 
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| **Image Registry** | Container registry host | Yes |
-| **Image Organization** | Registry organization | Yes |
-| **Image Name** | Name for container image | Yes |
-| **Namespace** | Kubernetes deployment namespace | Yes |
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| **Image Registry** | Container registry host | `quay.io` | Yes |
+| **Image Organization** | Registry organization | - | Yes |
+| **Image Name** | Name for container image | - | Yes |
+| **Namespace** | Kubernetes namespace for deployment | `rhdh-app` | Yes |
+| **CI/CD Credentials Secret Name** | Secret containing pipeline credentials | `cicd-credentials` | Yes |
+| **Deploy on Remote Cluster** | Deploy to a remote cluster | `false` | No |
+| **Remote Cluster API URL** | Kube API URL of remote cluster | - | Conditional |
+| **Remote Cluster Namespace** | Namespace on remote cluster | - | Conditional |
 
 ## **Required Secrets**
 
-Before deploying, ensure the following secrets are available in your target namespace:
+Before deploying, you need to create the following secrets in your target namespace:
+
+### **Llama Stack Secrets**
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: <app-name>-secrets
+  name: llama-stack-secrets  # Must match "Llama Stack Secrets Name" parameter
 type: Opaque
 stringData:
-  # Required: OpenAI API key for embeddings
-  OPENAI_API_KEY: "sk-..."
-  
-  # Optional: GitHub integration
-  GITHUB_TOKEN: "ghp_..."
-  GITHUB_URL: "https://github.com/your-org/your-repo"
-  GITHUB_ID: "your-github-username"
-  
-  # Optional: vLLM server (if using vLLM provider)
-  VLLM_URL: "https://your-vllm-server/v1"
-  VLLM_API_KEY: "your-vllm-api-key"
+  VLLM_API_KEY: "<your-vllm-api-key>"
+  OPENAI_API_KEY: "<your-openai-api-key>"
+```
+
+### **Application Secrets**
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets  # Must match "Application Secrets Name" parameter
+type: Opaque
+stringData:
+  GITHUB_TOKEN: "<your-github-personal-access-token>"
+```
+
+### **CI/CD Credentials**
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cicd-credentials  # Must match "CI/CD Credentials Secret Name" parameter
+type: Opaque
+stringData:
+  GIT_TOKEN: "<github-or-gitlab-pat>"
+  GITLAB_TOKEN: "<gitlab-pat>"  # Only if using GitLab
+  WEBHOOK_SECRET: "<pipelines-as-code-webhook-secret>"
+  QUAY_DOCKERCONFIGJSON: "<base64-encoded-docker-config>"
 ```
 
 !!! warning "Secret Management"
     
     For production deployments, use **Sealed Secrets** or **External Secrets Operator** 
     instead of plain Kubernetes secrets.
-
-## **Configuring the Llama Stack Server**
-
-The Llama Stack server is configured via the `run.yaml` ConfigMap. Key configuration sections:
-
-### **Inference Providers**
-
-```yaml
-providers:
-  inference:
-  # vLLM for high-throughput inference
-  - provider_id: vllm
-    provider_type: remote::vllm
-    config:
-      url: ${env.VLLM_URL}
-      api_token: ${env.VLLM_API_KEY}
-      
-  # Ollama for local inference
-  - provider_id: ollama
-    provider_type: remote::ollama
-    config:
-      url: http://ollama-service:11434
-      
-  # OpenAI for cloud inference
-  - provider_id: openai
-    provider_type: remote::openai
-    config:
-      api_key: ${env.OPENAI_API_KEY}
-```
-
-### **Vector Store Configuration**
-
-```yaml
-vector_io:
-- provider_id: milvus
-  provider_type: inline::milvus
-  config:
-    db_path: /data/milvus.db
-    embedding_model: openai/text-embedding-3-small
-    embedding_dimension: 1536
-```
-
-## **Configuring Document Ingestion**
-
-The ingestion pipeline is configured via the `ingestion-config.yaml` ConfigMap:
-
-```yaml
-pipelines:
-  # Add your document sources
-  custom-pipeline:
-    enabled: true
-    name: "custom-vector-db"
-    version: "1.0"
-    vector_store_name: "custom-vector-db-v1-0"
-    source: GITHUB
-    config:
-      url: "https://github.com/your-org/your-docs"
-      path: "docs/knowledge-base"
-      branch: "main"
-```
 
 ## **MCP Server Permissions**
 
@@ -146,7 +127,7 @@ The Kubernetes MCP Server requires read access to cluster resources. The templat
 
 ## **Post-Deployment Steps**
 
-1. **Verify Deployments** - Check that all three pods are running:
+1. **Verify Deployments** - Check that all four pods are running:
    ```bash
    kubectl get pods -l app.kubernetes.io/part-of=<app-name>
    ```
@@ -175,9 +156,10 @@ The Kubernetes MCP Server requires read access to cluster resources. The templat
 
 ### Llama Stack Not Starting
 
-Check the ConfigMap for syntax errors:
+Check the ConfigMap and Secret are correctly configured:
 ```bash
-kubectl get configmap <app-name>-llama-stack-config -o yaml
+kubectl get configmap <app-name>-llama-stack-env -o yaml
+kubectl get secret llama-stack-secrets
 ```
 
 ### MCP Server Permission Denied
@@ -187,10 +169,17 @@ Verify the ClusterRoleBinding exists:
 kubectl get clusterrolebinding <app-name>-mcp-reader-binding
 ```
 
-### Vector Store Errors
+### Ollama Model Not Loaded
 
-Check PVC is bound and has sufficient storage:
+Check the Ollama pod logs and verify the safety model was pulled:
 ```bash
-kubectl get pvc <app-name>-llama-data
+kubectl logs deployment/<app-name>-ollama -c pull-safety-model
+kubectl logs deployment/<app-name>-ollama -c ollama
 ```
 
+### Vector Store Errors
+
+Check the Ollama PVC is bound (Llama Stack uses ephemeral storage):
+```bash
+kubectl get pvc <app-name>-ollama-data
+```
