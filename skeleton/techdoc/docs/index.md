@@ -66,7 +66,7 @@ The application uses the following configuration:
 | `MCP_TOOL_MODEL` | Model for tool calls: `${{ values.mcpToolModel }}` | Software Template Form |
 | `OPENAI_API_KEY` | Required for text embeddings | Software Template Form |
 | `GITHUB_TOKEN` | GitHub integration | OpenShift/Kubernetes Secret |
-| `GITHUB_URL` | Issue creation repo | Software Template Form |
+| `GITHUB_URL` | Target repository for GitHub MCP Tool | Software Template Form |
 
 The Llama Stack server uses the following configuration:
 

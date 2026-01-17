@@ -22,16 +22,14 @@ This AI Software Template allows you to customize and deploy a complete agentic 
 |-----------|-------------|---------|----------|
 | **vLLM Server URL** | URL of the vLLM inference server endpoint | - | Yes |
 | **Safety Model** | Model for content safety guardrails | `ollama/llama-guard3:8b` | No |
-| **Llama Stack Secrets Name** | Kubernetes Secret name containing `VLLM_API_KEY` and `OPENAI_API_KEY` | `llama-stack-secrets` | Yes |
 
 ### **Application Configuration**
 
 | Parameter | Description | Default | Required |
 |-----------|-------------|---------|----------|
-| **Inference Model** | Model ID for classification and inference | `vllm/redhataiqwen3-8b-fp8-dynamic` | Yes |
-| **MCP Tool Model** | Model for MCP Kubernetes tool calls (must support function calling) | `vllm/redhataiqwen3-8b-fp8-dynamic` | Yes |
-| **GitHub Repository URL** | GitHub repository URL for issue creation and comments | - | Yes |
-| **Application Secrets Name** | Kubernetes Secret name containing `GITHUB_TOKEN` | `app-secrets` | Yes |
+| **Inference Model** | Model ID for classification and inference | - | Yes |
+| **MCP Tool Model** | Model for MCP Kubernetes tool calls (must support function calling) | - | Yes |
+| **GitHub Repository URL** | Target repository for the GitHub MCP Tool for issue creation and commenting | - | Yes |
 
 !!! tip "Model Selection"
     
@@ -42,13 +40,27 @@ This AI Software Template allows you to customize and deploy a complete agentic 
 
 ### **Repository Information**
 
+Two repositories will be created based on your settings: `{name}` for source code and `{name}-gitops` for Kubernetes manifests synced by ArgoCD.
+
 | Parameter | Description | Default | Required |
 |-----------|-------------|---------|----------|
 | **Host Type** | GitHub or GitLab | `GitHub` | Yes |
 | **Repository Server** | Git server URL | `github.com` or `gitlab.com` | Yes |
 | **Repository Owner** | Organization or user | - | Yes |
-| **Repository Name** | Name for source repo | - | Yes |
+| **Repository Name** | Creates two repos: source code (for building/deploying) and gitops (Kubernetes manifests) | - | Yes |
 | **Branch** | Default branch name | `main` | Yes |
+
+### **Namespace and Secrets Configuration**
+
+All secrets must exist in the specified namespace before deployment.
+
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| **Deployment Namespace** | Kubernetes namespace where the application and secrets will be deployed | `rhdh-app` | Yes |
+| **Llama Stack Secrets Name** | Secret containing `VLLM_API_KEY` and `OPENAI_API_KEY` | `llama-stack-secrets` | Yes |
+| **Application Secrets Name** | Secret containing `GITHUB_TOKEN` | `app-secrets` | Yes |
+| **CI/CD Credentials Secret Name** | Secret containing pipeline credentials | `cicd-credentials` | Yes |
+| **Secrets Acknowledgment** | Checkbox confirming secrets exist or will be created | - | Yes |
 
 ### **Deployment Information**
 
@@ -57,15 +69,10 @@ This AI Software Template allows you to customize and deploy a complete agentic 
 | **Image Registry** | Container registry host | `quay.io` | Yes |
 | **Image Organization** | Registry organization | - | Yes |
 | **Image Name** | Name for container image | - | Yes |
-| **Namespace** | Kubernetes namespace for deployment | `rhdh-app` | Yes |
-| **CI/CD Credentials Secret Name** | Secret containing pipeline credentials | `cicd-credentials` | Yes |
-| **Deploy on Remote Cluster** | Deploy to a remote cluster | `false` | No |
-| **Remote Cluster API URL** | Kube API URL of remote cluster | - | Conditional |
-| **Remote Cluster Namespace** | Namespace on remote cluster | - | Conditional |
 
 ## **Required Secrets**
 
-Before deploying, you need to create the following secrets in your target namespace:
+Before deploying, you need to create the following secrets in your target namespace. See the examples below for the required structure.
 
 ### **Llama Stack Secrets**
 
@@ -76,7 +83,9 @@ metadata:
   name: llama-stack-secrets  # Must match "Llama Stack Secrets Name" parameter
 type: Opaque
 stringData:
+  # API key for vLLM server - required for inference
   VLLM_API_KEY: "<your-vllm-api-key>"
+  # OpenAI API key - required for embeddings and inference
   OPENAI_API_KEY: "<your-openai-api-key>"
 ```
 
@@ -89,6 +98,7 @@ metadata:
   name: app-secrets  # Must match "Application Secrets Name" parameter
 type: Opaque
 stringData:
+  # GitHub PAT with 'repo' scope - required by GitHub MCP Tool for issue creation and commenting
   GITHUB_TOKEN: "<your-github-personal-access-token>"
 ```
 
@@ -101,10 +111,15 @@ metadata:
   name: cicd-credentials  # Must match "CI/CD Credentials Secret Name" parameter
 type: Opaque
 stringData:
-  GIT_TOKEN: "<github-or-gitlab-pat>"
-  GITLAB_TOKEN: "<gitlab-pat>"  # Only if using GitLab
-  WEBHOOK_SECRET: "<pipelines-as-code-webhook-secret>"
-  QUAY_DOCKERCONFIGJSON: "<base64-encoded-docker-config>"
+  # GitHub/GitLab PAT for Tekton pipeline GitOps operations
+  GIT_TOKEN: "<your-git-pat>"
+  # GitLab PAT (only if using GitLab)
+  GITLAB_TOKEN: "<your-gitlab-pat>"
+  # Pipelines as Code webhook secret (GitHub/GitLab)
+  WEBHOOK_SECRET: "<your-webhook-secret>"
+  # Docker config JSON for pushing images to registry
+  # Format: '{"auths":{"quay.io":{"auth":"<base64-user:token>","email":"<email>"}}}'
+  QUAY_DOCKERCONFIGJSON: '{"auths":{"quay.io":{"auth":"","email":""}}}'
 ```
 
 !!! warning "Secret Management"

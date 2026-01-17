@@ -87,17 +87,12 @@ spec:
 
     # ==================== Llama Stack Configuration ====================
     - title: Llama Stack Configuration
-      description: |
-        Configure the Llama Stack AI inference server. You must create a Kubernetes Secret 
-        containing the required API keys before or after deploying this template.
-        See the TechDocs for a secrets example template.
+      description: Configure the Llama Stack AI inference server.
       required:
         - vllmUrl
-        - llamaStackSecretName
       ui:order:
         - vllmUrl
         - safetyModel
-        - llamaStackSecretName
         - '*'
       properties:
         vllmUrl:
@@ -111,72 +106,39 @@ spec:
           default: ollama/llama-guard3:8b
           description: Model for content safety guardrails
           ui:help: "Optional - Default: ollama/llama-guard3:8b"
-        llamaStackSecretName:
-          title: Llama Stack Secrets Name
-          type: string
-          default: llama-stack-secrets
-          description: |
-            Name of a Kubernetes Secret you will create containing:
-            • VLLM_API_KEY - API key for vLLM server
-            • OPENAI_API_KEY - Your OpenAI API key (for embeddings)
-            See TechDocs "Secrets Configuration" for example YAML.
-          ui:help: |
-            kubectl create secret generic <secret-name> \
-              --from-literal=VLLM_API_KEY=<your-vllm-key> \
-              --from-literal=OPENAI_API_KEY=<your-openai-key>
 
     # ==================== Application Configuration ====================
     - title: Application Configuration
-      description: |
-        Configure the Streamlit AI application. You must create a Kubernetes Secret 
-        containing the GitHub token before or after deploying this template.
-        See the TechDocs for a secrets example template.
+      description: Configure the Streamlit AI application.
       required:
         - inferenceModel
         - mcpToolModel
         - githubRepoUrl
-        - appSecretName
       ui:order:
         - inferenceModel
         - mcpToolModel
         - githubRepoUrl
-        - appSecretName
         - '*'
       properties:
         inferenceModel:
           title: Inference Model (INFERENCE_MODEL)
           type: string
-          default: vllm/redhataiqwen3-8b-fp8-dynamic
           description: Model ID for classification and inference
-          ui:help: "Default: vllm/redhataiqwen3-8b-fp8-dynamic"
+          ui:help: "Example: vllm/redhataiqwen3-8b-fp8-dynamic"
         mcpToolModel:
           title: MCP Tool Model (MCP_TOOL_MODEL)
           type: string
-          default: vllm/redhataiqwen3-8b-fp8-dynamic
           description: Model for MCP Kubernetes tool calls (must support function calling)
-          ui:help: "Default: vllm/redhataiqwen3-8b-fp8-dynamic"
+          ui:help: "Example: vllm/redhataiqwen3-8b-fp8-dynamic"
         githubRepoUrl:
           title: GitHub Repository URL (GITHUB_URL)
           type: string
-          description: GitHub repository URL for issue creation and comments
+          description: Target repository for the GitHub MCP Tool for issue creation and commenting
           ui:help: "Example: https://github.com/your-org/your-repo"
-        appSecretName:
-          title: Application Secrets Name
-          type: string
-          default: app-secrets
-          description: |
-            Name of a Kubernetes Secret you will create containing:
-            • GITHUB_TOKEN - GitHub Personal Access Token with 'repo' scope for creating issues and comments
-            See TechDocs "Secrets Configuration" for example YAML.
-          ui:help: |
-            Create a GitHub Personal Access Token at: https://github.com/settings/tokens
-            Required scopes: repo (for issue creation and comments)
-            See: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
-            
-            kubectl create secret generic <secret-name> --from-literal=GITHUB_TOKEN=<your-github-pat>
 
     # ==================== Repository Information ====================
     - title: Application Repository Information
+      description: Configure where your application repositories will be created. Two repositories will be generated based on your settings.
       required:
         - hostType
         - repoOwner
@@ -197,6 +159,8 @@ spec:
         repoName:
           title: Repository Name
           type: string
+          description: "Creates two repos: {name} (source code for building/deploying) and {name}-gitops (Kubernetes manifests synced by ArgoCD)"
+          ui:help: "Example: my-ai-app creates my-ai-app and my-ai-app-gitops"
         branch:
           title: Repository Default Branch
           type: string
@@ -225,23 +189,74 @@ spec:
                   default: gitlab.com
                   ui:help: "On-prem example: gitlab.apps.cluster.example.com"
 
+    # ==================== Namespace and Secrets Configuration ====================
+    - title: Namespace and Secrets Configuration
+      description: |
+        Configure the deployment namespace and required Kubernetes Secrets.
+        All secrets must exist in the specified namespace. See TechDocs Usage page under "Required Secrets" for examples.
+      required:
+        - namespace
+        - llamaStackSecretName
+        - appSecretName
+        - cicdCredentialsSecretName
+        - secretsAcknowledgment
+      ui:order:
+        - namespace
+        - llamaStackSecretName
+        - appSecretName
+        - cicdCredentialsSecretName
+        - secretsAcknowledgment
+        - '*'
+      properties:
+        namespace:
+          title: Deployment Namespace
+          type: string
+          default: rhdh-app
+          description: Kubernetes namespace where the application and secrets will be deployed
+        llamaStackSecretName:
+          title: Llama Stack Secrets Name
+          type: string
+          default: llama-stack-secrets
+          description: |
+            • VLLM_API_KEY - API key for vLLM inference server
+            • OPENAI_API_KEY - OpenAI API key for embeddings and inference
+        appSecretName:
+          title: Application Secrets Name
+          type: string
+          default: app-secrets
+          description: |
+            • GITHUB_TOKEN - GitHub PAT with 'repo' scope for issue creation via GitHub MCP Tool
+        cicdCredentialsSecretName:
+          title: CI/CD Credentials Secret Name
+          type: string
+          default: cicd-credentials
+          description: |
+            • GIT_TOKEN - PAT for Tekton pipeline GitOps operations
+            • WEBHOOK_SECRET - Webhook secret for Pipelines as Code (GitHub/GitLab)
+            • QUAY_DOCKERCONFIGJSON - Docker config for pushing images to registry
+        secretsAcknowledgment:
+          title: I confirm the secrets exist or will be created in the specified namespace
+          type: boolean
+          default: false
+          ui:widget: checkbox
+      dependencies:
+        secretsAcknowledgment:
+          oneOf:
+            - properties:
+                secretsAcknowledgment:
+                  const: true
+
     # ==================== Deployment Information ====================
     - title: Deployment Information
       required:
         - imageRegistry
         - imageOrg
         - imageName
-        - namespace
-        - cicdCredentialsSecretName
       ui:order:
         - imageRegistry
         - imageOrg
         - imageName
-        - namespace
-        - cicdCredentialsSecretName
-        - deployArgoCDApplicationOnRemoteCluster
-        - remoteClusterAPIUrl
-        - remoteClusterDeploymentNamespace
+        - '*'
       properties:
         imageRegistry:
           title: Image Registry
@@ -257,57 +272,6 @@ spec:
           title: Image Name
           type: string
           description: Name for the container image
-          ui:autofocus: true
-          ui:options:
-            rows: 5
-        namespace:
-          title: Deployment Namespace
-          type: string
-          default: rhdh-app
-          description: Kubernetes namespace for deployment
-          ui:autofocus: true
-          ui:options:
-            rows: 5
-        cicdCredentialsSecretName:
-          title: CI/CD Credentials Secret Name
-          type: string
-          default: cicd-credentials
-          description: |
-            Name of a Kubernetes Secret containing CI/CD pipeline credentials:
-            • GIT_TOKEN - GitHub/GitLab PAT for GitOps repository operations
-            • GITLAB_TOKEN - GitLab PAT (if using GitLab)
-            • WEBHOOK_SECRET - Pipelines as Code webhook secret
-            • QUAY_DOCKERCONFIGJSON - Image registry credentials
-            Note: Cosign public key is auto-fetched from openshift-pipelines namespace.
-            See TechDocs "Pipeline Secrets Configuration" for example YAML.
-          ui:help: |
-            This secret is used by the initialize-namespace Job to set up Tekton pipelines.
-            If not provided, the Job will skip pipeline setup.
-        deployArgoCDApplicationOnRemoteCluster:
-          title: Deploy on Remote Cluster?
-          type: boolean
-          default: false
-          ui:help: "Requires remote cluster pre-configured in RHDH"
-      dependencies:
-        deployArgoCDApplicationOnRemoteCluster:
-          oneOf:
-            - required:
-                - remoteClusterAPIUrl
-                - remoteClusterDeploymentNamespace
-              properties:
-                deployArgoCDApplicationOnRemoteCluster:
-                  const: true
-                remoteClusterAPIUrl:
-                  title: Remote Cluster API URL
-                  type: string
-                  ui:help: "Kube API URL of remote cluster"
-                remoteClusterDeploymentNamespace:
-                  title: Remote Cluster Namespace
-                  type: string
-                  ui:help: "Namespace on remote cluster for deployment"
-            - properties:
-                deployArgoCDApplicationOnRemoteCluster:
-                  const: false
 
   # ==================== Template Steps ====================
   steps:
@@ -456,7 +420,7 @@ spec:
           name: ${{ parameters.name }}
           appName: ${{ parameters.name }}-gitops
           description: GitOps manifest for Llama Stack Agentic - ${{ parameters.name }}
-          namespace: ${{ parameters.remoteClusterDeploymentNamespace if parameters.deployArgoCDApplicationOnRemoteCluster else parameters.namespace }}
+          namespace: ${{ parameters.namespace }}
           rhdhNamespace: ai-rhdh
           repoURL: https://${{ parameters.githubServer if parameters.hostType === 'GitHub' else parameters.gitlabServer }}/${{ parameters.repoOwner }}/${{ parameters.repoName }}-gitops
           srcRepoURL: https://${{ parameters.githubServer if parameters.hostType === 'GitHub' else parameters.gitlabServer }}/${{ parameters.repoOwner }}/${{ parameters.repoName }}
@@ -488,10 +452,6 @@ spec:
           openaiEnabled: true
           # Pipeline/Deployment configuration
           cicdCredentialsSecretName: ${{ parameters.cicdCredentialsSecretName }}
-          # Remote cluster configuration
-          deployOnRemoteCluster: ${{ parameters.deployArgoCDApplicationOnRemoteCluster }}
-          remoteClusterAPIUri: ${{ parameters.remoteClusterAPIUrl }}
-          remoteClusterDeploymentNamespace: ${{ parameters.remoteClusterDeploymentNamespace }}
           # Image configuration
           imageRegistry: ${{ parameters.imageRegistry }}
           imageOrg: ${{ parameters.imageOrg }}
