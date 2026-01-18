@@ -52,5 +52,4 @@ The template supports multiple inference providers through Llama Stack:
 - [The Deployable Application](./application.md)
 - [Using the Llama Stack Agentic Template](./usage.md)
 - [Template Prerequisites](./template-prerequisites.md)
-- [Remote Cluster Configuration](./template-remote-cluster.md)
 
