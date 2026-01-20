@@ -249,7 +249,8 @@ class RAGService:
                 continue
 
             if pipeline.source == SourceTypes.GITHUB:
-                url = pipeline.source_config.url
+                # Strip .git suffix if present (matches ingest.py behavior)
+                url = pipeline.source_config.url.rstrip("/").removesuffix(".git")
                 branch = pipeline.source_config.branch
                 path = pipeline.source_config.path or ""
 
