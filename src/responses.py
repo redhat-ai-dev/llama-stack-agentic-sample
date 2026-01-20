@@ -92,7 +92,9 @@ class RAGService:
         - Container has metadata from a different Llama Stack instance
         """
         if not self.client:
-            logger.warning("RAG Service: Cannot validate metadata - client not initialized")
+            logger.warning(
+                "RAG Service: Cannot validate metadata - client not initialized"
+            )
             return
 
         # Collect all file_ids from vector stores
@@ -190,8 +192,10 @@ class RAGService:
                     )
                     
                     if is_valid_filename:
-                        github_url = f"{base_url}/{original_filename}" if base_url else ""
-                        
+                        github_url = (
+                            f"{base_url}/{original_filename}" if base_url else ""
+                        )
+
                         regenerated_metadata[file_id] = {
                             "original_filename": original_filename,
                             "github_url": github_url,
@@ -497,10 +501,11 @@ class RAGService:
                     # Metadata not found - use category base URL instead of
                     # constructing invalid URL with file_id
                     base_url = self.source_url_map.get(category, "")
+                    # Link to category folder, not invalid file_id URL
                     sources.append(
                         {
                             "filename": f"Document from {category} knowledge base",
-                            "url": base_url,  # Link to category folder, not invalid file_id URL
+                            "url": base_url,
                             "snippet": snippet or "",
                         }
                     )
