@@ -62,7 +62,7 @@ providers:
       persistence:
         namespace: faiss
         backend: kv_default
-      embedding_model: openai/text-embedding-3-small
+      embedding_model: ollama/all-minilm:l6-v2
       embedding_dimension: 1536
   files:
   - provider_id: localfs

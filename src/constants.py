@@ -32,7 +32,7 @@ DEFAULT_GUARDRAIL_MODEL = "ollama/llama-guard3:8b"
 
 # DEFAULT_EMBEDDING_MODEL: The default embedding model
 # used for generating vector embeddings.
-DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+DEFAULT_EMBEDDING_MODEL = "ollama/all-minilm:l6-v2"
 
 # DEFAULT_INGESTION_MODE: The default mode for document ingestion.
 # "sync" = sequential (slower but more stable, won't overwhelm embedding model)
