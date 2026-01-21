@@ -44,7 +44,7 @@ class RAGService:
 
         # file metadata: file_id -> {original_filename, github_url, category}
         self.file_metadata: "dict[str, dict[str, str]]" = {}
-        
+
         # Store pipelines for metadata regeneration
         self.pipelines = pipelines
 
@@ -100,19 +100,20 @@ class RAGService:
         # Collect all file_ids from vector stores
         actual_file_ids: "set[str]" = set()
         file_id_to_category: "dict[str, str]" = {}
-        
+
         for category, vs_ids in self.vector_store_map.items():
             for vs_id in vs_ids:
                 try:
                     files = self.client.vector_stores.files.list(vector_store_id=vs_id)
-                    if files:
-                        for file_info in files:
-                            file_id = getattr(file_info, "id", None) or getattr(
-                                file_info, "file_id", None
-                            )
-                            if file_id:
-                                actual_file_ids.add(file_id)
-                                file_id_to_category[file_id] = category
+                    if not files:
+                        continue
+                    for file_info in files:
+                        file_id = getattr(file_info, "id", None) or getattr(
+                            file_info, "file_id", None
+                        )
+                        if file_id:
+                            actual_file_ids.add(file_id)
+                            file_id_to_category[file_id] = category
                 except Exception as e:
                     logger.debug(f"Could not list files for vector store {vs_id}: {e}")
 
@@ -123,11 +124,10 @@ class RAGService:
         # Check if current metadata has matching file_ids
         metadata_file_ids = set(self.file_metadata.keys())
         matching_ids = actual_file_ids & metadata_file_ids
-        
+
         if matching_ids == actual_file_ids:
             logger.info(
-                f"RAG Service: File metadata is valid "
-                f"({len(matching_ids)} files match)"
+                f"RAG Service: File metadata is valid ({len(matching_ids)} files match)"
             )
             return
 
@@ -138,7 +138,7 @@ class RAGService:
             f"Matching metadata: {len(matching_ids)}. "
             f"Regenerating metadata from vector stores..."
         )
-        
+
         self._regenerate_file_metadata(file_id_to_category)
 
     def _regenerate_file_metadata(
@@ -147,7 +147,7 @@ class RAGService:
         """
         Regenerates file metadata by querying file details from Llama Stack.
         Uses category information to construct GitHub URLs.
-        
+
         This handles pod restarts where the local metadata file is lost but
         vector stores still exist in Llama Stack. The original filename is
         preserved in Llama Stack's file storage (since we upload with the
@@ -157,42 +157,42 @@ class RAGService:
             return
 
         regenerated_metadata: "dict[str, dict[str, str]]" = {}
-        
+
         for file_id, category in file_id_to_category.items():
             try:
                 # Try to get file details from Llama Stack
                 file_info = self.client.files.retrieve(file_id)
-                
+
                 # Extract filename - try multiple attributes
-                filename = None
+                filename: "str | None" = None
                 if hasattr(file_info, "filename") and file_info.filename:
-                    filename = file_info.filename
+                    filename = str(file_info.filename)
                 elif hasattr(file_info, "name") and file_info.name:
-                    filename = file_info.name
-                
+                    filename = str(file_info.name)
+
                 # Get base URL for this category
                 base_url = self.source_url_map.get(category, "")
-                
-                if filename:
+
+                if isinstance(filename, str):
                     # Clean up filename if it's a full path
                     if "/" in filename:
                         filename = os.path.basename(filename)
-                    
+
                     # Convert .txt back to .pdf (ingestion converts pdf->txt)
-                    original_filename = filename
+                    original_filename: str = filename
                     if filename.lower().endswith(".txt"):
                         original_filename = filename[:-4] + ".pdf"
-                    
+
                     # Skip if filename looks like a random temp file
                     # (e.g., tmp12345.txt from old ingestion code)
                     is_valid_filename = not (
-                        filename.startswith("tmp") and 
-                        len(filename) > 10 and 
-                        filename[3:].split(".")[0].isdigit()
+                        filename.startswith("tmp")
+                        and len(filename) > 10
+                        and filename[3:].split(".")[0].isdigit()
                     )
-                    
+
                     if is_valid_filename:
-                        github_url = (
+                        github_url: str = (
                             f"{base_url}/{original_filename}" if base_url else ""
                         )
 
@@ -226,7 +226,7 @@ class RAGService:
                     logger.debug(
                         f"RAG Service: No filename for {file_id}, using fallback"
                     )
-                    
+
             except Exception as e:
                 logger.debug(f"Could not retrieve file {file_id}: {e}")
                 # Still add basic metadata so we have category info
