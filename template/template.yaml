@@ -227,14 +227,8 @@ spec:
         secretsAcknowledgment:
           title: I confirm the secrets exist or will be created in the specified namespace
           type: boolean
-          default: false
           ui:widget: checkbox
-      dependencies:
-        secretsAcknowledgment:
-          oneOf:
-            - properties:
-                secretsAcknowledgment:
-                  const: true
+          const: true
 
     # ==================== Deployment Information ====================
     - title: Deployment Information
