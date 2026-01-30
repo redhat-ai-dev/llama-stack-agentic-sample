@@ -55,7 +55,7 @@ describe('Llama stack agentic sample template', () => {
 
   beforeAll(() => {
     hubClient = new DeveloperHubClient(process.env.RHDH_URL!, process.env.RHDH_TOKEN);
-    kubeClient = new KubeClient();
+    kubeClient = new KubeClient(process.env.KUBECONFIG);
     gitClient = new GitHubClient(process.env.GITHUB_TOKEN!);
   });
 

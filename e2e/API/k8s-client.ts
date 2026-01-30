@@ -3,9 +3,13 @@ import { AppsV1Api, CoreV1Api, CustomObjectsApi, KubeConfig, V1ObjectMeta, V1Sec
 export class KubeClient {
   private readonly kubeConfig: KubeConfig;
 
-  constructor() {
+  constructor(configFile?: string) {
     this.kubeConfig = new KubeConfig();
-    this.kubeConfig.loadFromDefault();
+    if (configFile) {
+      this.kubeConfig.loadFromFile(configFile);
+    } else {
+      this.kubeConfig.loadFromDefault();
+    }
   }
 
   async createSecret(name: string, namespace: string, data: {[key: string]: string}) {
