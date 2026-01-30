@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+      "module": "esnext",
+      "noImplicitAny": false,
+      "target": "es2019",
+      "lib": ["es2023"],
+      "moduleResolution": "bundler",
+      "removeComments": false,
+      "sourceMap": true,
+      "noLib": false,
+      "declaration": true,
+      "strict": true,
+      "forceConsistentCasingInFileNames": true,
+      "importHelpers": true,
+      "skipLibCheck": true,
+      "esModuleInterop": true,
+      "useDefineForClassFields": false,
+  }
+}
