@@ -13,7 +13,7 @@ describe('Llama stack agentic sample template', () => {
   const llsSecret = 'llama-stack-secrets';
   const platformSecret = 'platform-credentials';
 
-  const defaultRepo = `https://github.com/${process.env.GITHUB_ORG}/${appName}`;
+  const defaultRepo = `https://github.com/${process.env.GITOPS_GIT_ORG}/${appName}`;
 
   const templateValues: LlsTemplateValues = {
     argoInstance: 'default',
@@ -34,18 +34,18 @@ describe('Llama stack agentic sample template', () => {
     owner: 'user:default/Guest',
     platformCredentialsSecretName: platformSecret,
     repoName: appName,
-    repoOwner: process.env.GITHUB_ORG || 'rhdh-pai-qe',
+    repoOwner: process.env.GITOPS_GIT_ORG || 'rhdh-pai-qe',
     safetyModel: process.env.SAFETY_MODEL || 'ollama/llama-guard3:8b',
     secretsAcknowledgment: true,
     vllmUrl: process.env.VLLM_URL!
   }
 
   const llsValues = {
-    VLLM_API_KEY: process.env.VLLM_KEY!
+    VLLM_API_KEY: process.env.VLLM_API_KEY!
   };
   const platformValues = {
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN!,
-    WEBHOOK_SECRET: process.env.WEBHOOK_SECRET!,
+    GITOPS_GIT_TOKEN: process.env.GITOPS_GIT_TOKEN!,
+    GITHUB_APP_WEBHOOK_SECRET: process.env.GITHUB_APP_WEBHOOK_SECRET!,
     QUAY_DOCKERCONFIGJSON: process.env.QUAY_DOCKERCONFIGJSON!
   };
 
@@ -54,9 +54,9 @@ describe('Llama stack agentic sample template', () => {
   let gitClient: GitHubClient;
 
   beforeAll(() => {
-    hubClient = new DeveloperHubClient(process.env.RHDH_URL!, process.env.RHDH_TOKEN);
+    hubClient = new DeveloperHubClient(process.env.RHDH_BASE_URL!, process.env.RHDH_TOKEN);
     kubeClient = new KubeClient(process.env.KUBECONFIG);
-    gitClient = new GitHubClient(process.env.GITHUB_TOKEN!);
+    gitClient = new GitHubClient(process.env.GITOPS_GIT_TOKEN!);
   });
 
   it('Load the template if not imported', async () => {
