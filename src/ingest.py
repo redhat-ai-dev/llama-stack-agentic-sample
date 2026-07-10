@@ -5,7 +5,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 import yaml
@@ -293,7 +293,7 @@ class IngestionService:
                             if isinstance(c, ContentFile):
                                 contents_list.append(c)
                             elif hasattr(c, "type") and hasattr(c, "name"):
-                                contents_list.append(c)  # type: ignore[arg-type]
+                                contents_list.append(cast(ContentFile, c))
                         pdf_files.extend(
                             self._fetch_github_dir_contents(
                                 repo, contents_list, branch, path, download_dir
@@ -384,7 +384,7 @@ class IngestionService:
                     if isinstance(c, ContentFile):
                         contents_list.append(c)
                     elif hasattr(c, "type") and hasattr(c, "name"):
-                        contents_list.append(c)  # type: ignore[arg-type]
+                        contents_list.append(cast(ContentFile, c))
                 pdf_files = self._fetch_github_dir_contents(
                     repo, contents_list, branch, path, download_dir
                 )

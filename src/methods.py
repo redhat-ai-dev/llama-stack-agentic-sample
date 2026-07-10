@@ -300,7 +300,7 @@ def git_agent(
     if not tools_llm:
         raise AgentRunMethodParameterError("tools_llm is required in git agent")
 
-    openai_mcp_tool: "dict[str, Any]" = {
+    openai_mcp_tool: "Any" = {
         "type": "mcp",
         "server_label": "github",
         "server_url": "https://api.githubcopilot.com/mcp/",
@@ -319,7 +319,7 @@ def git_agent(
                 sub_id=state["submission_id"],
                 user_question=state["input"],
             ),
-            tools=[openai_mcp_tool],  # type: ignore[arg-type]
+            tools=[openai_mcp_tool],
         )
         logger.debug("git_agent response returned")
 
@@ -371,7 +371,7 @@ def git_agent(
                         issue_id=gh_issue,
                         comment_body=body_as_string,
                     ),
-                    tools=[openai_mcp_tool],  # type: ignore[arg-type]
+                    tools=[openai_mcp_tool],
                     timeout=240.0,  # the bigger comment calls can take
                     # especially long ... put a cap on it
                 )
@@ -440,7 +440,7 @@ def pod_agent(
     if not tools_llm:
         raise AgentRunMethodParameterError("tools_llm is required in git agent")
 
-    openai_mcp_tool: "dict[str, Any]" = {
+    openai_mcp_tool: "Any" = {
         "type": "mcp",
         "server_label": "OpenShift / Kubernetes MCP Tools",
         "server_url": MCP_SERVER_URL,
@@ -455,7 +455,7 @@ def pod_agent(
         resp = openai_client.responses.create(
             model=tools_llm,
             input=WorkflowAgentPrompts.POD_PROMPT.format(namespace=state["namespace"]),
-            tools=[openai_mcp_tool],  # type: ignore[arg-type]
+            tools=[openai_mcp_tool],
         )
         logger.debug(
             f"K8S Agent successful return MCP request "
@@ -518,7 +518,7 @@ def perf_agent(
     if not tools_llm:
         raise AgentRunMethodParameterError("tools_llm is required in git agent")
 
-    openai_mcp_tool: "dict[str, Any]" = {
+    openai_mcp_tool: "Any" = {
         "type": "mcp",
         "server_label": "OpenShift / Kubernetes MCP Tools",
         "server_url": MCP_SERVER_URL,
@@ -534,7 +534,7 @@ def perf_agent(
         resp = openai_client.responses.create(
             model=tools_llm,
             input=WorkflowAgentPrompts.PERF_PROMPT.format(namespace=state["namespace"]),
-            tools=[openai_mcp_tool],  # type: ignore[arg-type]
+            tools=[openai_mcp_tool],
         )
         logger.debug(
             f"K8S perf Agent successful return MCP request "

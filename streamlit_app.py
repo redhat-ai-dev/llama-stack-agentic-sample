@@ -586,7 +586,7 @@ def _run_async_in_thread(coro):
 
 
 async def run_workflow_task_async(
-    workflow: "Workflow", question: "str", submission_id: "str"
+    workflow: "Any", question: "str", submission_id: "str"
 ) -> "None":
     """
     async task to run a single workflow with concurrent operations
@@ -599,7 +599,7 @@ async def run_workflow_task_async(
         # the question through appropriate agents (classification -> dept agents)
         # Note: workflow.invoke is synchronous but we're in an async context
         # to allow future async operations within the workflow
-        result = workflow.invoke(  # type: ignore[attr-defined]
+        result = workflow.invoke(
             {
                 "input": question,
                 "submission_id": submission_id,

@@ -72,7 +72,7 @@ class Workflow:
         messages = self._convert_messages_to_openai_format(state)
         completion = self.rag_service.openai_client.chat.completions.create(
             model=INFERENCE_MODEL,
-            messages=messages,  # type: ignore[invalid-argument-type]
+            messages=cast("Any", messages),
         )
         return completion.choices[0].message.content or ""
 
@@ -206,7 +206,7 @@ class Workflow:
                     rag_response = client_to_use.responses.create(
                         model=INFERENCE_MODEL,
                         input=rag_prompt,
-                        tools=[file_search_tool],  # type: ignore[invalid-argument-type]
+                        tools=cast("Any", [file_search_tool]),
                     )
                     rag_end_time = time.time()
                     state["rag_query_time"] = rag_end_time - rag_start_time
@@ -290,7 +290,7 @@ class Workflow:
 
             return state
 
-        agent_builder = StateGraph(WorkflowState)  # type: ignore[arg-type]
+        agent_builder = StateGraph(cast("Any", WorkflowState))
         agent_builder.add_node(f"{department_name}_set_message", init_message)
         agent_builder.add_node("llm_node", llm_node)
         agent_builder.add_edge(START, f"{department_name}_set_message")
@@ -450,7 +450,7 @@ class Workflow:
                 tools_llm=tools_llm,
             )
 
-        overall_workflow = StateGraph(WorkflowState)  # type: ignore[arg-type]
+        overall_workflow = StateGraph(cast("Any", WorkflowState))
         overall_workflow.add_node(
             "classification_agent",
             classification_node,
