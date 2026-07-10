@@ -1,0 +1,38 @@
+[project]
+name = "llama-stack-agentic-sample"
+version = "0.1.0"
+description = "Llama-Stack LangGraph Customer Service Example"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docling>=2.63.0",
+    "llama-stack-client>=0.3.1",
+    "llama-stack>=0.3.1",
+    "pygithub>=2.8.1",
+    "pyyaml>=6.0.3",
+    "langgraph>=1.0.4",
+    "ollama>=0.6.1",
+    "mcp>=1.23.1",
+    "chardet>=5.2.0",
+    "streamlit>=1.52.1",
+    "grandalf>=0.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = ["ruff>=0.8.0", "pytest>=7.4.0", "pre-commit>=3.5.0"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = ["tests", "*.pyi"]
+include = ["src/**/*.py", "streamlit_app.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]

@@ -71,6 +71,9 @@ source .venv/bin/activate
 We have provided a custom run.yaml file to specify the required providers. Use the following command to run the Llama Stack with the custom configuration file.
 
 ```
+cp pyproject.llama-stack.toml pyproject.toml
+uv sync
+source .venv/bin/activate
 uv run llama stack run run.yaml
 ```
 
@@ -117,6 +120,9 @@ uv run llama-stack-client configure --endpoint http://localhost:8321 --api-key n
 ## Run the application Code
 
 ```bash
+cp pyproject.orig.toml pyproject.toml
+uv sync
+source .venv/bin/activate
 uv run streamlit run streamlit_app.py
 ```
 
