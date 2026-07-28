@@ -5,7 +5,7 @@
 # =============================================================================
 # BUILDER STAGE
 # =============================================================================
-FROM registry.access.redhat.com/ubi9/python-312:9.7@sha256:92c71d1e64cf84b9aa6e8e81555397175b9367298b456d24eac5b55ab41fdab9 AS builder
+FROM registry.access.redhat.com/ubi9/python-312:9.7@sha256:ff373f4b42b662e99954adea770ca87b4ea963186cc752174ccb94aa08fa702d AS builder
 
 USER root
 
