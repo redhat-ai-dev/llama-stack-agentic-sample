@@ -32,7 +32,7 @@ RUN .venv/bin/python -c "from rapidocr import RapidOCR, EngineType; RapidOCR(par
 # =============================================================================
 # RUNTIME STAGE
 # =============================================================================
-FROM registry.access.redhat.com/ubi9/python-312-minimal:9.7@sha256:2ac60c655288a88ec55df5e2154b9654629491e3c58b5c54450fb3d27a575cb6
+FROM registry.access.redhat.com/ubi9/python-312-minimal:9.7@sha256:445709dc989a00efecaa10244f5c502ecb1604b5b1fbb8fe21e9e9ffb3e36254
 
 ARG APP_ROOT=/app-root
 WORKDIR /app-root
