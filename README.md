@@ -1,5 +1,8 @@
 # llama-stack-agentic-sample
 
+> [!WARNING]
+> This repository has been retired and will no longer be maintained. It has been moved to [redhat-developer/rhdh-llama-stack-agentic-sample](https://github.com/redhat-developer/rhdh-llama-stack-agentic-sample).
+
 ![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)
 ![Tests](https://img.shields.io/badge/tests-passing-success.svg)
 
